@@ -1,0 +1,6 @@
+{
+  "name": "TULIPS（仮）- 高校向け学習記録表",
+  "description": "高校生向け学習記録・管理システム。手動入力・タイマー計測・学習統計および教員向け定期テスト課題設定・学習進捗分析機能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
