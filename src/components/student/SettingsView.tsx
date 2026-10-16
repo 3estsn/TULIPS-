@@ -23,6 +23,7 @@ import { UserRole } from '../../domain/models/index.ts';
 export const SettingsView: React.FC = () => {
   const {
     currentUser,
+    subjects,
     updateUserProfile,
     switchUserRole,
     loginWithGoogle,
@@ -38,6 +39,10 @@ export const SettingsView: React.FC = () => {
   const [grade, setGrade] = useState<number>(currentUser?.grade || 2);
   const [classRoom, setClassRoom] = useState<string>(currentUser?.classRoom || '1組');
   const [studentNumber, setStudentNumber] = useState<number>(currentUser?.studentNumber || 14);
+  const [weeklyGoalHours, setWeeklyGoalHours] = useState<number>(() =>
+    Math.round((currentUser?.weeklyGoalMinutes || 900) / 60)
+  );
+  const [focusSubjectId, setFocusSubjectId] = useState<string>(currentUser?.focusSubjectId || 'math');
   const [customHex, setCustomHex] = useState<string>(accentColor);
   const [savedMessage, setSavedMessage] = useState<string>('');
 
@@ -50,8 +55,10 @@ export const SettingsView: React.FC = () => {
       grade: isTeacher ? undefined : Number(grade),
       classRoom: classRoom.trim(),
       studentNumber: isTeacher ? undefined : Number(studentNumber),
+      weeklyGoalMinutes: isTeacher ? undefined : Math.max(1, weeklyGoalHours) * 60,
+      focusSubjectId: isTeacher ? undefined : focusSubjectId,
     });
-    setSavedMessage('アカウント情報を保存しました。');
+    setSavedMessage('アカウント設定を保存しました。');
     setTimeout(() => setSavedMessage(''), 3000);
   };
 
@@ -62,28 +69,28 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-24 md:pb-12">
+    <div className="max-w-2xl mx-auto space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
           設定
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          アカウント情報、生徒・教員モードの切替、およびUIの外観（テーマやアクセントカラー）をカスタマイズできます。
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          アカウント情報、生徒・教員モードの切替、目標時間、重視する科目、UI外観をカスタマイズできます。
         </p>
       </div>
 
       {savedMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-sm font-medium">
-          <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <div className="p-3 rounded-lg bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-xs font-medium">
+          <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>{savedMessage}</span>
         </div>
       )}
 
       {/* 画面モード切替（生徒画面 / 先生画面） */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <GraduationCap className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+          <GraduationCap className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             画面モードの切替（生徒 / 教員）
           </h2>
         </div>
@@ -132,10 +139,10 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* UI外観設定（テーマ & アクセントカラー） */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
-        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <Palette className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
+        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+          <Palette className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             UIの外観設定
           </h2>
         </div>
@@ -245,10 +252,10 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* アカウント設定 */}
-      <form onSubmit={handleProfileSave} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <User className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <form onSubmit={handleProfileSave} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
+        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+          <User className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             アカウント情報
           </h2>
         </div>
@@ -346,6 +353,43 @@ export const SettingsView: React.FC = () => {
                   onChange={(e) => setStudentNumber(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-hidden"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  1週間の目標学習時間（時間）
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="80"
+                  value={weeklyGoalHours}
+                  onChange={(e) => setWeeklyGoalHours(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-hidden"
+                />
+                <span className="text-[11px] text-zinc-400 mt-0.5 block">
+                  ホーム画面の目標円グラフに反映されます
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  重視する科目
+                </label>
+                <select
+                  value={focusSubjectId}
+                  onChange={(e) => setFocusSubjectId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-hidden"
+                >
+                  {subjects.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-zinc-400 mt-0.5 block">
+                  重点的に取り組む科目としてホーム画面に表示されます
+                </span>
               </div>
             </>
           )}

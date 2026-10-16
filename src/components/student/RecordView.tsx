@@ -213,30 +213,30 @@ export const RecordView: React.FC = () => {
   const filteredMaterials = materials.filter((m) => m.subjectId === selectedSubjectId);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-24 md:pb-12">
+    <div className="max-w-2xl mx-auto space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
       {/* ページタイトル */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
           学習を記録する
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
           手動入力またはタイマー機能（カウントアップ/カウントダウン）で教材ごとの学習時間を記録します。
         </p>
       </div>
 
       {/* 完了通知メッセージ */}
       {saveSuccessMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2">
-          <CheckCircle className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span className="text-sm font-medium">{saveSuccessMsg}</span>
+        <div className="p-3 rounded-lg bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2">
+          <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-xs font-medium">{saveSuccessMsg}</span>
         </div>
       )}
 
       {/* 共通: 教材・科目選択カード */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <BookOpen className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
+        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+          <BookOpen className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             学習する教科・教材を選択
           </h2>
         </div>
@@ -356,8 +356,8 @@ export const RecordView: React.FC = () => {
 
       {/* 手動入力モードのUI */}
       {inputMode === 'manual' && (
-        <form onSubmit={handleManualSubmit} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <form onSubmit={handleManualSubmit} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {/* 日付選択 */}
             <div>
               <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
@@ -441,7 +441,7 @@ export const RecordView: React.FC = () => {
 
       {/* タイマー計測モードのUI */}
       {inputMode === 'timer' && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
           {/* カウントアップ / カウントダウン切り替え */}
           <div className="flex justify-center">
             <div className="inline-flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">

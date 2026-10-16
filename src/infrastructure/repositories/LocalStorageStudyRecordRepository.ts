@@ -91,7 +91,12 @@ export class LocalStorageStudyRecordRepository implements IStudyRecordRepository
     const monday = new Date(now);
     monday.setDate(now.getDate() + diffToMonday);
 
-    const weekDays: { day: string; date: string; minutes: number }[] = [];
+    const weekDays: {
+      day: string;
+      date: string;
+      minutes: number;
+      subjectsBreakdown: { subjectId: string; subjectName: string; color: string; minutes: number }[];
+    }[] = [];
     const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
     let thisWeekTotalMinutes = 0;
 
@@ -100,14 +105,27 @@ export class LocalStorageStudyRecordRepository implements IStudyRecordRepository
       currentDay.setDate(monday.getDate() + i);
       const curDateStr = currentDay.toISOString().split('T')[0];
       
-      const dayMinutes = userRecords
-        .filter((r) => r.date === curDateStr)
-        .reduce((sum, r) => sum + r.durationMinutes, 0);
+      const dayRecords = userRecords.filter((r) => r.date === curDateStr);
+      const dayMinutes = dayRecords.reduce((sum, r) => sum + r.durationMinutes, 0);
+
+      // 教科ごとの学習時間内訳
+      const daySubjectMap = new Map<string, number>();
+      dayRecords.forEach((r) => {
+        daySubjectMap.set(r.subjectId, (daySubjectMap.get(r.subjectId) || 0) + r.durationMinutes);
+      });
+
+      const daySubjectsBreakdown = INITIAL_SUBJECTS.map((sub) => ({
+        subjectId: sub.id,
+        subjectName: sub.name,
+        color: sub.color,
+        minutes: daySubjectMap.get(sub.id) || 0,
+      })).filter((s) => s.minutes > 0);
 
       weekDays.push({
         day: dayNames[i],
         date: curDateStr,
         minutes: dayMinutes,
+        subjectsBreakdown: daySubjectsBreakdown,
       });
 
       thisWeekTotalMinutes += dayMinutes;

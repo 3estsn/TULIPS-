@@ -72,16 +72,16 @@ export const TeacherTasksView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-24 md:pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+          <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
             教員用タスク管理
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
             定期テスト課題の範囲設定
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             定期テストの課題範囲や提出期限を設定・配信します。生徒のホーム画面に即座に共有されます。
           </p>
         </div>
@@ -89,17 +89,17 @@ export const TeacherTasksView: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsCreating(!isCreating)}
-          className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-opacity hover:opacity-95 cursor-pointer shrink-0 shadow-xs"
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs transition-opacity hover:opacity-95 cursor-pointer shrink-0 shadow-xs"
           style={{ backgroundColor: accentColor, color: accentForeground }}
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>{isCreating ? 'フォームを閉じる' : '新規テスト課題を追加'}</span>
         </button>
       </div>
 
       {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-sm font-medium">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <div className="p-3 rounded-lg bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-xs font-medium">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
@@ -108,11 +108,11 @@ export const TeacherTasksView: React.FC = () => {
       {isCreating && (
         <form
           onSubmit={handleCreateTask}
-          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4"
+          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5"
         >
-          <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-            <ClipboardList className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+          <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+            <ClipboardList className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
               新規 定期テスト課題の範囲を入力
             </h2>
           </div>
@@ -244,9 +244,9 @@ export const TeacherTasksView: React.FC = () => {
       )}
 
       {/* 登録済み定期テスト課題一覧 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             配信中の定期テスト課題一覧（{tasks.length}件）
           </h2>
           <span className="text-xs text-zinc-400">

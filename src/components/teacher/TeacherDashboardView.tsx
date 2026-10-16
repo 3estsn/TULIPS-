@@ -110,65 +110,65 @@ export const TeacherDashboardView: React.FC = () => {
   const activeTodayCount = summaries.filter((s) => s.todayMinutes > 0).length;
 
   return (
-    <div className="space-y-6 pb-24 md:pb-12">
+    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
       {/* 画面ヘッダー */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <div>
-          <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+          <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
             教員専用ポータル
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
             生徒の学習時間 統計情報
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             担当クラス・学年の各生徒の週間学習量、本日の記録状況、継続日数をリアルタイムで把握できます。
           </p>
         </div>
       </div>
 
       {/* サマリーカード */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             <span>生徒1人あたりの今週平均時間</span>
-            <TrendingUp className="w-4 h-4 text-blue-500" />
+            <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-2">
+          <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
             {formatMinutes(avgClassWeekMinutes)}
           </div>
-          <span className="text-xs text-zinc-400 mt-1 block">今週の学年平均学習量</span>
+          <span className="text-[11px] text-zinc-400 mt-0.5 block">今週の学年平均学習量</span>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             <span>本日の学習記録 提出生徒</span>
-            <Users className="w-4 h-4 text-emerald-500" />
+            <Users className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-2">
+          <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
             {activeTodayCount} / {summaries.length}
-            <span className="text-sm font-semibold text-zinc-500 ml-1">名</span>
+            <span className="text-xs font-semibold text-zinc-500 ml-1">名</span>
           </div>
-          <span className="text-xs text-zinc-400 mt-1 block">
+          <span className="text-[11px] text-zinc-400 mt-0.5 block">
             本日すでに学習を記録した生徒数
           </span>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             <span>学年全体の総学習時間（今週）</span>
-            <Clock className="w-4 h-4 text-amber-500" />
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-2">
+          <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
             {formatMinutes(totalClassWeekMinutes)}
           </div>
-          <span className="text-xs text-zinc-400 mt-1 block">今週の学年総勉強時間</span>
+          <span className="text-[11px] text-zinc-400 mt-0.5 block">今週の学年総勉強時間</span>
         </div>
       </div>
 
       {/* 絞り込み & 生徒一覧テーブル */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             生徒別 学習進捗一覧（{filteredSummaries.length}名）
           </h2>
 

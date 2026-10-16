@@ -20,7 +20,13 @@ export class FirebaseAuthRepository implements IAuthRepository {
     const raw = localStorage.getItem(USER_STORAGE_KEY);
     if (raw) {
       try {
-        this.currentUser = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        this.currentUser = {
+          ...INITIAL_USER,
+          ...parsed,
+          weeklyGoalMinutes: parsed.weeklyGoalMinutes ?? 900,
+          focusSubjectId: parsed.focusSubjectId ?? 'math',
+        };
         return;
       } catch (e) {
         console.error('Failed to parse current user from localStorage', e);

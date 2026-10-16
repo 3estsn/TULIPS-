@@ -45,38 +45,38 @@ export const StatisticsView: React.FC = () => {
       : records.filter((r) => r.subjectId === selectedSubjectFilter);
 
   return (
-    <div className="space-y-6 pb-24 md:pb-12">
+    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
       {/* タイトルヘッダー */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
           学習統計
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
           日々の学習履歴を累計・今年度・今月・今日など多様な期間で分析し、弱点克服と継続を支援します。
         </p>
       </div>
 
       {/* ホーム主要指標の再掲（今週の合計、1週間の1日平均、連続日数） */}
-      <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5">
-        <div className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+      <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
+        <div className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2.5">
           今週のサマリー（ホーム連携指標）
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold">今週の学習時間</div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
+            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">今週の学習時間</div>
+            <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
               {formatMinutes(stats?.thisWeek.totalMinutes || 0)}
             </div>
           </div>
-          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold">1週間の1日平均</div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+          <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
+            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">1週間の1日平均</div>
+            <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
               {formatMinutes(stats?.thisWeek.averageMinutesPerDay || 0)}
             </div>
           </div>
-          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold">連続記録日数</div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+          <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
+            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">連続記録日数</div>
+            <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
               {stats?.streakDays || 0} 日連続
             </div>
           </div>
@@ -84,10 +84,10 @@ export const StatisticsView: React.FC = () => {
       </div>
 
       {/* 要件指定：学習時間（累計・今年度・今月・今日） */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs">
-        <div className="flex items-center space-x-2 mb-4">
-          <Clock className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center space-x-2 mb-3">
+          <Clock className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             期間別 学習時間合計
           </h2>
         </div>
@@ -132,10 +132,10 @@ export const StatisticsView: React.FC = () => {
       </div>
 
       {/* 要件指定：1日の平均学習時間（累計・今年度・今月・今日） */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs">
-        <div className="flex items-center space-x-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center space-x-2 mb-3">
+          <TrendingUp className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             1日の平均学習時間
           </h2>
         </div>
@@ -180,16 +180,16 @@ export const StatisticsView: React.FC = () => {
       </div>
 
       {/* 教科別学習時間の内訳 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs">
-        <div className="flex items-center space-x-2 mb-4">
-          <PieChart className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center space-x-2 mb-3">
+          <PieChart className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
             教科別 学習時間の割合
           </h2>
         </div>
 
         {/* スタックバー */}
-        <div className="h-4 rounded-full overflow-hidden flex bg-zinc-100 dark:bg-zinc-800">
+        <div className="h-3.5 rounded-full overflow-hidden flex bg-zinc-100 dark:bg-zinc-800">
           {stats?.subjectBreakdown
             .filter((sub) => sub.percentage > 0)
             .map((sub) => (
@@ -205,23 +205,23 @@ export const StatisticsView: React.FC = () => {
         </div>
 
         {/* 教科ごとのリスト */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mt-3.5">
           {stats?.subjectBreakdown.map((sub) => (
             <div
               key={sub.subjectId}
-              className="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/30 flex items-center justify-between"
+              className="p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/30 flex items-center justify-between"
             >
-              <div className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
-                <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
                   {sub.subjectName}
                 </span>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
                   {formatMinutes(sub.minutes)}
                 </span>
-                <span className="text-[11px] text-zinc-400 ml-1.5">({sub.percentage}%)</span>
+                <span className="text-[10px] text-zinc-400 ml-1">({sub.percentage}%)</span>
               </div>
             </div>
           ))}
@@ -229,11 +229,11 @@ export const StatisticsView: React.FC = () => {
       </div>
 
       {/* 詳細な学習記録履歴テーブル */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div className="flex items-center space-x-2">
-            <ListFilter className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
-            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-3">
+          <div className="flex items-center space-x-1.5">
+            <ListFilter className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
               学習記録一覧
             </h2>
           </div>

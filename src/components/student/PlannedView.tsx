@@ -11,24 +11,24 @@ export const PlannedView: React.FC = () => {
   const { accentColor, accentForeground, tasks, setActiveTab } = useApp();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-24 md:pb-12 text-center py-6">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-8 sm:p-10 shadow-xs">
+    <div className="max-w-xl mx-auto space-y-4 pb-20 md:pb-8 text-center py-4 text-xs sm:text-sm">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-xs">
         <div
-          className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center mb-5 shadow-sm"
+          className="w-12 h-12 rounded-xl mx-auto flex items-center justify-center mb-4 shadow-sm"
           style={{ backgroundColor: accentColor, color: accentForeground }}
         >
-          <Calendar className="w-8 h-8" />
+          <Calendar className="w-6 h-6" />
         </div>
 
-        <div className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 mb-3">
+        <div className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 mb-2">
           将来的に実装予定の機能
         </div>
 
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
           学習計画・カレンダー（予定）
         </h1>
 
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+        <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1.5 leading-relaxed">
           定期テスト、校内模試、検定試験の日程に合わせた学習スケジュールの逆算登録や、日々の学習目標タスクを自動管理する機能を次回アップデートにて実装予定です。
         </p>
 

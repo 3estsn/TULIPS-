@@ -15,6 +15,8 @@ export interface User {
   studentNumber?: number; // 出席番号
   avatarUrl?: string;
   isGoogleAccount?: boolean;
+  weeklyGoalMinutes?: number; // 1週間の目標学習時間（分）
+  focusSubjectId?: string; // 重視する科目ID
 }
 
 export type SubjectCategory = 'japanese' | 'math' | 'english' | 'science' | 'social' | 'info' | 'other';
@@ -80,7 +82,12 @@ export interface ComprehensiveStatistics {
   thisWeek: {
     totalMinutes: number;
     averageMinutesPerDay: number;
-    dailyBreakdown: { day: string; date: string; minutes: number }[]; // 月〜日
+    dailyBreakdown: {
+      day: string;
+      date: string;
+      minutes: number;
+      subjectsBreakdown: { subjectId: string; subjectName: string; color: string; minutes: number }[];
+    }[]; // 月〜日
   };
   // 統計画面で表示する追加指標
   today: {

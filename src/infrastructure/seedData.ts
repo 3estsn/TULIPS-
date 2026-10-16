@@ -6,13 +6,13 @@
 import { Material, RegularTestTask, Subject, User } from '../domain/models/index.ts';
 
 export const INITIAL_SUBJECTS: Subject[] = [
-  { id: 'math', name: '数学', category: 'math', color: '#3b82f6' },
-  { id: 'english', name: '英語', category: 'english', color: '#f59e0b' },
   { id: 'japanese', name: '国語', category: 'japanese', color: '#ef4444' },
+  { id: 'math', name: '数学', category: 'math', color: '#3b82f6' },
   { id: 'science', name: '理科', category: 'science', color: '#10b981' },
-  { id: 'social', name: '地歴公民', category: 'social', color: '#8b5cf6' },
+  { id: 'social', name: '社会', category: 'social', color: '#eab308' },
+  { id: 'english', name: '英語', category: 'english', color: '#8b5cf6' },
   { id: 'info', name: '情報', category: 'info', color: '#06b6d4' },
-  { id: 'other', name: 'その他・自習', category: 'other', color: '#64748b' },
+  { id: 'other', name: 'その他', category: 'other', color: '#64748b' },
 ];
 
 export const INITIAL_MATERIALS: Material[] = [
@@ -61,6 +61,8 @@ export const INITIAL_USER: User = {
   classRoom: '1組',
   studentNumber: 14,
   isGoogleAccount: true,
+  weeklyGoalMinutes: 900, // 15時間
+  focusSubjectId: 'math', // 重視する科目: 数学
 };
 
 export const INITIAL_STUDENTS: User[] = [
