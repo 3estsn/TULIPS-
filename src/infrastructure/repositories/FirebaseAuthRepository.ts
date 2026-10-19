@@ -21,13 +21,15 @@ export class FirebaseAuthRepository implements IAuthRepository {
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        this.currentUser = {
-          ...INITIAL_USER,
-          ...parsed,
-          weeklyGoalMinutes: parsed.weeklyGoalMinutes ?? 900,
-          focusSubjectId: parsed.focusSubjectId ?? 'math',
-        };
-        return;
+        if (parsed && typeof parsed === 'object') {
+          this.currentUser = {
+            ...INITIAL_USER,
+            ...parsed,
+            weeklyGoalMinutes: typeof parsed.weeklyGoalMinutes === 'number' ? parsed.weeklyGoalMinutes : 900,
+            focusSubjectId: typeof parsed.focusSubjectId === 'string' ? parsed.focusSubjectId : 'math',
+          };
+          return;
+        }
       } catch (e) {
         console.error('Failed to parse current user from localStorage', e);
       }
@@ -104,7 +106,7 @@ export class FirebaseAuthRepository implements IAuthRepository {
 
   async updateProfile(updates: Partial<Omit<User, 'id' | 'email'>>): Promise<User> {
     if (!this.currentUser) {
-      throw new Error('User not logged in');
+      this.currentUser = { ...INITIAL_USER };
     }
     this.currentUser = {
       ...this.currentUser,

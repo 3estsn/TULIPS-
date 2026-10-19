@@ -23,8 +23,11 @@ export class LocalStorageStudyRecordRepository implements IStudyRecordRepository
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        this.records = JSON.parse(raw);
-        return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.records = parsed;
+          return;
+        }
       } catch (e) {
         console.error('Failed to parse study records from localStorage', e);
       }
@@ -111,7 +114,8 @@ export class LocalStorageStudyRecordRepository implements IStudyRecordRepository
       // 教科ごとの学習時間内訳
       const daySubjectMap = new Map<string, number>();
       dayRecords.forEach((r) => {
-        daySubjectMap.set(r.subjectId, (daySubjectMap.get(r.subjectId) || 0) + r.durationMinutes);
+        const sid = r.subjectId || 'other';
+        daySubjectMap.set(sid, (daySubjectMap.get(sid) || 0) + (Number(r.durationMinutes) || 0));
       });
 
       const daySubjectsBreakdown = INITIAL_SUBJECTS.map((sub) => ({
@@ -188,7 +192,8 @@ export class LocalStorageStudyRecordRepository implements IStudyRecordRepository
     // 科目別内訳（累計または今月）
     const subjectMap = new Map<string, number>();
     userRecords.forEach((r) => {
-      subjectMap.set(r.subjectId, (subjectMap.get(r.subjectId) || 0) + r.durationMinutes);
+      const sid = r.subjectId || 'other';
+      subjectMap.set(sid, (subjectMap.get(sid) || 0) + (Number(r.durationMinutes) || 0));
     });
 
     const subjectBreakdown = INITIAL_SUBJECTS.map((sub) => {

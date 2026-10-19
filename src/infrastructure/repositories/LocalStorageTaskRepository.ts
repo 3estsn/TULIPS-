@@ -23,8 +23,11 @@ export class LocalStorageTaskRepository implements ITaskRepository {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        this.tasks = JSON.parse(raw);
-        return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.tasks = parsed;
+          return;
+        }
       } catch (e) {
         console.error('Failed to parse tasks from localStorage', e);
       }

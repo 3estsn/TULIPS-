@@ -20,8 +20,11 @@ export class LocalStorageMaterialRepository implements IMaterialRepository {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        this.materials = JSON.parse(raw);
-        return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.materials = parsed;
+          return;
+        }
       } catch (e) {
         console.error('Failed to parse materials from localStorage', e);
       }

@@ -49,7 +49,7 @@ export const HomeView: React.FC = () => {
 
   // 目標学習時間（分）デフォルトは15時間（900分）
   const weeklyGoalMinutes = currentUser?.weeklyGoalMinutes || 900;
-  const thisWeekTotalMinutes = stats?.thisWeek.totalMinutes || 0;
+  const thisWeekTotalMinutes = stats?.thisWeek?.totalMinutes || 0;
   const progressPercent = Math.min(100, Math.round((thisWeekTotalMinutes / Math.max(1, weeklyGoalMinutes)) * 100));
 
   // 重視する科目
@@ -59,8 +59,8 @@ export const HomeView: React.FC = () => {
     subjects[0];
 
   // 曜日グラフの最大値（Y軸スケール用）
-  const weekBreakdown = stats?.thisWeek.dailyBreakdown || [];
-  const maxMinutesInWeek = Math.max(120, ...weekBreakdown.map((d) => d.minutes));
+  const weekBreakdown = stats?.thisWeek?.dailyBreakdown || [];
+  const maxMinutesInWeek = Math.max(120, ...weekBreakdown.map((d) => d.minutes || 0));
 
   // 直近の定期テスト課題
   const nearestTasks = tasks.slice(0, 2);
@@ -71,17 +71,27 @@ export const HomeView: React.FC = () => {
   const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
 
   const handleSaveGoal = async () => {
-    await updateUserProfile({
-      weeklyGoalMinutes: Math.max(1, goalHoursInput) * 60,
-    });
-    setIsEditingGoal(false);
+    try {
+      await updateUserProfile({
+        weeklyGoalMinutes: Math.max(1, goalHoursInput) * 60,
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsEditingGoal(false);
+    }
   };
 
   const handleSelectFocusSubject = async (subjectId: string) => {
-    await updateUserProfile({
-      focusSubjectId: subjectId,
-    });
-    setIsEditingFocus(false);
+    try {
+      await updateUserProfile({
+        focusSubjectId: subjectId,
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsEditingFocus(false);
+    }
   };
 
   return (
@@ -246,7 +256,7 @@ export const HomeView: React.FC = () => {
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              {formatMinutes(stats?.today.totalMinutes || 0)}
+              {formatMinutes(stats?.today?.totalMinutes || 0)}
             </div>
             <div className="text-[11px] text-zinc-400 mt-0.5">本日分の実績</div>
           </div>
@@ -260,7 +270,7 @@ export const HomeView: React.FC = () => {
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              {formatMinutes(stats?.cumulative.totalMinutes || 0)}
+              {formatMinutes(stats?.cumulative?.totalMinutes || 0)}
             </div>
             <div className="text-[11px] text-zinc-400 mt-0.5">全記録期間の総合計</div>
           </div>
@@ -445,7 +455,7 @@ export const HomeView: React.FC = () => {
               </h2>
             </div>
             <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-              合計 {formatMinutes(stats?.today.totalMinutes || 0)}
+              合計 {formatMinutes(stats?.today?.totalMinutes || 0)}
             </span>
           </div>
 

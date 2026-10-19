@@ -65,10 +65,8 @@ export const TeacherTasksView: React.FC = () => {
   };
 
   const handleDeleteTask = async (id: string) => {
-    if (window.confirm('この定期テスト課題を削除しますか？')) {
-      await services.taskRepository.deleteTask(id);
-      await refreshData();
-    }
+    await services.taskRepository.deleteTask(id);
+    await refreshData();
   };
 
   return (

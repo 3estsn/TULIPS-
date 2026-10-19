@@ -15,7 +15,7 @@ import {
   ClipboardList,
   GraduationCap,
   BookOpen,
-  LucideIcon,
+  type LucideIcon,
 } from 'lucide-react';
 import { NavTab, useApp } from '../../context/AppContext.tsx';
 
@@ -90,33 +90,31 @@ export const Sidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* ロールバッジ（生徒/教員表示） */}
-      <div className="px-3 pt-3">
-        <div
-          className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between ${
-            isTeacher
-              ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40'
-              : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40'
-          }`}
-        >
-          <div className="flex items-center space-x-2 truncate">
-            <GraduationCap className="w-4 h-4 shrink-0" />
-            {!isSidebarCollapsed && (
+      {/* ロールバッジ（展開時のみ表示：折りたたみ時はアイコンのみのナビに徹する） */}
+      {!isSidebarCollapsed && (
+        <div className="px-3 pt-3">
+          <div
+            className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between ${
+              isTeacher
+                ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40'
+                : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40'
+            }`}
+          >
+            <div className="flex items-center space-x-2 truncate">
+              <GraduationCap className="w-4 h-4 shrink-0" />
               <span className="font-semibold truncate">
                 {isTeacher ? '教員モード' : '生徒モード'}
               </span>
-            )}
-          </div>
-          {!isSidebarCollapsed && (
+            </div>
             <button
               onClick={() => switchUserRole(isTeacher ? 'student' : 'teacher')}
               className="text-[11px] underline opacity-80 hover:opacity-100 font-medium cursor-pointer"
             >
               切替
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ナビゲーションメニュー */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

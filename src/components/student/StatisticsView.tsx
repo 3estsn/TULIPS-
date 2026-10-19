@@ -33,10 +33,8 @@ export const StatisticsView: React.FC = () => {
   }, [currentUser, stats]);
 
   const handleDeleteRecord = async (id: string) => {
-    if (window.confirm('この学習記録を削除しますか？')) {
-      await services.studyRecordRepository.deleteRecord(id);
-      await refreshData();
-    }
+    await services.studyRecordRepository.deleteRecord(id);
+    await refreshData();
   };
 
   const filteredRecords =
@@ -65,13 +63,13 @@ export const StatisticsView: React.FC = () => {
           <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
             <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">今週の学習時間</div>
             <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
-              {formatMinutes(stats?.thisWeek.totalMinutes || 0)}
+              {formatMinutes(stats?.thisWeek?.totalMinutes || 0)}
             </div>
           </div>
           <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
             <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">1週間の1日平均</div>
             <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
-              {formatMinutes(stats?.thisWeek.averageMinutesPerDay || 0)}
+              {formatMinutes(stats?.thisWeek?.averageMinutesPerDay || 0)}
             </div>
           </div>
           <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-800">
@@ -97,7 +95,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今日</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.today.totalMinutes || 0)}
+              {formatMinutes(stats?.today?.totalMinutes || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">本日分の合計</span>
           </div>
@@ -106,7 +104,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今月</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.thisMonth.totalMinutes || 0)}
+              {formatMinutes(stats?.thisMonth?.totalMinutes || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">当月1日〜今日</span>
           </div>
@@ -115,7 +113,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今年度</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.thisFiscalYear.totalMinutes || 0)}
+              {formatMinutes(stats?.thisFiscalYear?.totalMinutes || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">4月1日〜現在</span>
           </div>
@@ -124,7 +122,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">累計</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.cumulative.totalMinutes || 0)}
+              {formatMinutes(stats?.cumulative?.totalMinutes || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">利用開始からの総時間</span>
           </div>
@@ -145,7 +143,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今日</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.today.averageMinutesPerDay || 0)}
+              {formatMinutes(stats?.today?.averageMinutesPerDay || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">今日の学習実績</span>
           </div>
@@ -154,7 +152,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今月平均</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.thisMonth.averageMinutesPerDay || 0)}
+              {formatMinutes(stats?.thisMonth?.averageMinutesPerDay || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">今月日数で除算</span>
           </div>
@@ -163,7 +161,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今年度平均</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.thisFiscalYear.averageMinutesPerDay || 0)}
+              {formatMinutes(stats?.thisFiscalYear?.averageMinutesPerDay || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">年度経過日数で除算</span>
           </div>
@@ -172,7 +170,7 @@ export const StatisticsView: React.FC = () => {
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">累計平均</span>
             <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.cumulative.averageMinutesPerDay || 0)}
+              {formatMinutes(stats?.cumulative?.averageMinutesPerDay || 0)}
             </div>
             <span className="text-[11px] text-zinc-400 mt-1 block">全記録期間での平均</span>
           </div>
@@ -190,7 +188,7 @@ export const StatisticsView: React.FC = () => {
 
         {/* スタックバー */}
         <div className="h-3.5 rounded-full overflow-hidden flex bg-zinc-100 dark:bg-zinc-800">
-          {stats?.subjectBreakdown
+          {(stats?.subjectBreakdown || [])
             .filter((sub) => sub.percentage > 0)
             .map((sub) => (
               <div
@@ -206,7 +204,7 @@ export const StatisticsView: React.FC = () => {
 
         {/* 教科ごとのリスト */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mt-3.5">
-          {stats?.subjectBreakdown.map((sub) => (
+          {(stats?.subjectBreakdown || []).map((sub) => (
             <div
               key={sub.subjectId}
               className="p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/30 flex items-center justify-between"
