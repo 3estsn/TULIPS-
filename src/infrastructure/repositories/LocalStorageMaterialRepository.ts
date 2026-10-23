@@ -61,4 +61,29 @@ export class LocalStorageMaterialRepository implements IMaterialRepository {
     this.save();
     return newMaterial;
   }
+
+  async updateMaterial(id: string, updates: Partial<Omit<Material, 'id'>>): Promise<Material> {
+    const index = this.materials.findIndex((m) => m.id === id);
+    if (index === -1) {
+      throw new Error(`Material not found with id: ${id}`);
+    }
+    const updated = {
+      ...this.materials[index],
+      ...updates,
+    };
+    this.materials[index] = updated;
+    this.save();
+    return updated;
+  }
+
+  async deleteMaterial(id: string): Promise<boolean> {
+    const prevLen = this.materials.length;
+    this.materials = this.materials.filter((m) => m.id !== id);
+    if (this.materials.length !== prevLen) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
 }
+

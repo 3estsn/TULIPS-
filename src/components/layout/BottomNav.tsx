@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Home, BarChart3, Plus, Calendar, Settings, Users, ClipboardList } from 'lucide-react';
+import { Home, BarChart3, Plus, Calendar, CalendarCheck, Settings, Users, ClipboardList } from 'lucide-react';
 import { NavTab, useApp } from '../../context/AppContext.tsx';
 
 export const BottomNav: React.FC = () => {
@@ -114,7 +114,7 @@ export const BottomNav: React.FC = () => {
         </span>
       </button>
 
-      {/* 4: 予定 */}
+      {/* 4: 計画・タスク */}
       <button
         onClick={() => setActiveTab('schedule')}
         className={`flex flex-col items-center py-1 px-2.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
@@ -124,8 +124,8 @@ export const BottomNav: React.FC = () => {
         }`}
         style={{ color: activeTab === 'schedule' ? accentColor : undefined }}
       >
-        <Calendar className="w-5 h-5 mb-0.5" />
-        <span className="text-[11px]">予定</span>
+        <CalendarCheck className="w-5 h-5 mb-0.5" />
+        <span className="text-[11px]">計画</span>
       </button>
 
       {/* 5: 設定 */}

@@ -129,12 +129,12 @@ export const StatisticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 要件指定：1日の平均学習時間（累計・今年度・今月・今日） */}
+      {/* 要件指定：平均学習時間（累計・今年度・今月・今日） */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs">
         <div className="flex items-center space-x-2 mb-3">
           <TrendingUp className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
           <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-            1日の平均学習時間
+            平均学習時間
           </h2>
         </div>
 

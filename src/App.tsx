@@ -15,6 +15,7 @@ import { PlannedView } from './components/student/PlannedView.tsx';
 import { SettingsView } from './components/student/SettingsView.tsx';
 import { TeacherDashboardView } from './components/teacher/TeacherDashboardView.tsx';
 import { TeacherTasksView } from './components/teacher/TeacherTasksView.tsx';
+import { TeacherMaterialStructureEditor } from './components/teacher/TeacherMaterialStructureEditor.tsx';
 
 const AppContent: React.FC = () => {
   const { activeTab, currentUser } = useApp();
@@ -36,6 +37,8 @@ const AppContent: React.FC = () => {
         return <TeacherDashboardView />;
       case 'teacher_tasks':
         return <TeacherTasksView />;
+      case 'teacher_materials':
+        return <TeacherMaterialStructureEditor />;
       default:
         return isTeacher ? <TeacherDashboardView /> : <HomeView />;
     }

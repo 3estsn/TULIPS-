@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Clock,
   Flame,
-  PlusCircle,
   FileText,
   ChevronRight,
   BookOpen,
@@ -18,6 +17,10 @@ import {
   Layers,
   Edit2,
   Check,
+  CalendarCheck,
+  Square,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext.tsx';
 import { StudyRecord, Subject } from '../../domain/models/index.ts';
@@ -26,7 +29,20 @@ import { INITIAL_SUBJECTS } from '../../infrastructure/seedData.ts';
 import { formatMinutes } from '../../utils/timeFormat.ts';
 
 export const HomeView: React.FC = () => {
-  const { stats, tasks, currentUser, subjects, setActiveTab, accentColor, accentForeground, updateUserProfile } = useApp();
+  const {
+    stats,
+    tasks,
+    currentUser,
+    subjects,
+    setActiveTab,
+    accentColor,
+    accentForeground,
+    updateUserProfile,
+    studentTasks,
+    activeStudentTaskPaces,
+    toggleTaskItemCompletion,
+    setPendingRegularTaskForStudentPlan,
+  } = useApp();
   const [todayRecords, setTodayRecords] = useState<StudyRecord[]>([]);
   const [isEditingGoal, setIsEditingGoal] = useState<boolean>(false);
   const [goalHoursInput, setGoalHoursInput] = useState<number>(() => {
@@ -138,15 +154,6 @@ export const HomeView: React.FC = () => {
             </div>
           )}
         </div>
-
-        <button
-          onClick={() => setActiveTab('record')}
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs transition-opacity hover:opacity-95 active:scale-98 cursor-pointer shadow-xs ml-auto"
-          style={{ backgroundColor: accentColor, color: accentForeground }}
-        >
-          <PlusCircle className="w-3.5 h-3.5" />
-          <span>学習を記録</span>
-        </button>
       </div>
 
       {/* ホーム主要指標カード（今週の合計、1週間の目標進捗円グラフ、今日、累計、連続日数） */}
@@ -392,6 +399,117 @@ export const HomeView: React.FC = () => {
         </div>
       </div>
 
+      {/* 本日の学習タスク & 日割りノルマ ウィジェット (生徒の要望: ホーム画面に小さく表示) */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <CalendarCheck className="w-4 h-4 text-blue-500" />
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              本日の学習タスク & 日割りノルマ
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('schedule')}
+            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-0.5 cursor-pointer"
+          >
+            <span>計画・タスク管理へ</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {studentTasks.length === 0 ? (
+          <div className="p-3.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 text-center flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+              まだ学習タスクが設定されていません。問題集のやるべき範囲を登録すると日割りノルマが自動計算されます。
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('schedule')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 cursor-pointer shadow-xs"
+              style={{ backgroundColor: accentColor, color: accentForeground }}
+            >
+              タスクを作成する
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {activeStudentTaskPaces.map((pace) => {
+              const task = studentTasks.find((t) => t.id === pace.taskId);
+              if (!task) return null;
+              const sub = subjects.find((s) => s.id === task.subjectId);
+              const progressPct =
+                pace.totalItems > 0
+                  ? Math.round((pace.completedItems / pace.totalItems) * 100)
+                  : 0;
+
+              return (
+                <div
+                  key={pace.taskId}
+                  className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 space-y-2"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span
+                      className="px-1.5 py-0.2 rounded text-[10px] font-bold"
+                      style={{
+                        backgroundColor: `${sub?.color || '#888'}22`,
+                        color: sub?.color || '#888',
+                      }}
+                    >
+                      {sub?.name}
+                    </span>
+                    <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                      {pace.daysRemaining > 0 ? `あと${pace.daysRemaining}日` : '期日'} (予備日{pace.bufferDays}日)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate pr-2">
+                      {task.title}
+                    </div>
+                    <div className="text-xs font-bold shrink-0" style={{ color: pace.isCompleted ? '#10b981' : accentColor }}>
+                      {pace.isCompleted ? '達成！' : `本日ノルマ: ${pace.dailyQuota}問`}
+                    </div>
+                  </div>
+
+                  {/* 進捗バー */}
+                  <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${progressPct}%`,
+                        backgroundColor: progressPct === 100 ? '#10b981' : accentColor,
+                      }}
+                    />
+                  </div>
+
+                  {/* 本日ノルマのクイックチェック項目 */}
+                  {pace.todayItems.length > 0 && !pace.isCompleted && (
+                    <div className="space-y-1 pt-1 border-t border-zinc-200/60 dark:border-zinc-700/60">
+                      <div className="text-[10px] text-zinc-400 font-medium">今日の目標項目:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {pace.todayItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => toggleTaskItemCompletion(task.id, item.id, true)}
+                            className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:border-emerald-500 hover:text-emerald-600 transition-colors cursor-pointer"
+                            title="クリックで完了にする"
+                          >
+                            <Square className="w-3 h-3 text-zinc-400" />
+                            <span>{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* 2カラムレイアウト: 定期テスト課題の範囲 & 今日の学習記録 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
         {/* 定期テスト課題（先生が設定した課題範囲） */}
@@ -435,6 +553,21 @@ export const HomeView: React.FC = () => {
                       指示: {t.notes}
                     </div>
                   )}
+
+                  {/* 定期テスト課題から学習タスク設定を促すボタン */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingRegularTaskForStudentPlan(t);
+                      setActiveTab('schedule');
+                    }}
+                    className="mt-2 w-full py-1.5 px-2.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 dark:hover:bg-amber-900/80 border border-amber-200 dark:border-amber-800/60 transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>この範囲で学習タスクを作成する</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+
                   <div className="mt-1.5 pt-1.5 border-t border-zinc-200/60 dark:border-zinc-700/60 flex items-center justify-between text-[10px] text-zinc-400">
                     <span>配信: {t.teacherName}</span>
                     <span>対象: {t.targetGrade}年 {t.targetClass}</span>

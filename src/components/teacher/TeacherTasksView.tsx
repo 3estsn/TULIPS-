@@ -14,14 +14,26 @@ import {
   AlertCircle,
   FileText,
   Users,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext.tsx';
 import { RegularTestTask } from '../../domain/models/index.ts';
 import { services } from '../../infrastructure/ServiceContainer.ts';
+import { TeacherMaterialStructureEditor } from './TeacherMaterialStructureEditor.tsx';
 
 export const TeacherTasksView: React.FC = () => {
-  const { tasks, subjects, currentUser, accentColor, accentForeground, refreshData } = useApp();
+  const {
+    tasks,
+    subjects,
+    materials,
+    currentUser,
+    accentColor,
+    accentForeground,
+    refreshData,
+  } = useApp();
 
+  const [activeSubTab, setActiveSubTab] = useState<'tasks' | 'materials'>('tasks');
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [title, setTitle] = useState<string>('2学期期末考査');
   const [subjectId, setSubjectId] = useState<string>('math');
@@ -34,7 +46,22 @@ export const TeacherTasksView: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [notes, setNotes] = useState<string>('');
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
+
+  // 教科に応じた登録済み構造化教材
+  const subjectMaterials = materials.filter((m) => m.subjectId === subjectId);
+
+  const handleAppendScopeFromStructure = (textToAppend: string, matId: string) => {
+    setScope((prev) => {
+      const cleanPrev = prev.trim();
+      if (!cleanPrev) return textToAppend;
+      return `${cleanPrev}、${textToAppend}`;
+    });
+    if (!selectedMaterialIds.includes(matId)) {
+      setSelectedMaterialIds((prev) => [...prev, matId]);
+    }
+  };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +78,7 @@ export const TeacherTasksView: React.FC = () => {
         scope: scope.trim(),
         deadline,
         notes: notes.trim() || undefined,
+        materialIds: selectedMaterialIds.length > 0 ? selectedMaterialIds : undefined,
       });
 
       await refreshData();
@@ -58,6 +86,7 @@ export const TeacherTasksView: React.FC = () => {
       setIsCreating(false);
       setScope('');
       setNotes('');
+      setSelectedMaterialIds([]);
       setTimeout(() => setSuccessMessage(''), 4000);
     } catch (e) {
       console.error(e);
@@ -71,49 +100,94 @@ export const TeacherTasksView: React.FC = () => {
 
   return (
     <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
-            教員用タスク管理
-          </div>
-          <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            定期テスト課題の範囲設定
-          </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            定期テストの課題範囲や提出期限を設定・配信します。生徒のホーム画面に即座に共有されます。
-          </p>
-        </div>
+      {/* サブタブ切り替えバー */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800 space-x-1 sm:space-x-3">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('tasks')}
+          className={`flex items-center space-x-2 py-2.5 px-3 border-b-2 text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'tasks'
+              ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
+              : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+          }`}
+          style={{
+            borderColor: activeSubTab === 'tasks' ? accentColor : 'transparent',
+          }}
+        >
+          <ClipboardList className="w-4 h-4" />
+          <span>定期テスト課題配信</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-200 dark:bg-zinc-700">
+            {tasks.length}
+          </span>
+        </button>
 
         <button
           type="button"
-          onClick={() => setIsCreating(!isCreating)}
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs transition-opacity hover:opacity-95 cursor-pointer shrink-0 shadow-xs"
-          style={{ backgroundColor: accentColor, color: accentForeground }}
+          onClick={() => setActiveSubTab('materials')}
+          className={`flex items-center space-x-2 py-2.5 px-3 border-b-2 text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'materials'
+              ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
+              : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+          }`}
+          style={{
+            borderColor: activeSubTab === 'materials' ? accentColor : 'transparent',
+          }}
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>{isCreating ? 'フォームを閉じる' : '新規テスト課題を追加'}</span>
+          <Layers className="w-4 h-4" />
+          <span>参考書・問題集の構造マスター管理</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-200 dark:bg-zinc-700">
+            {materials.length}
+          </span>
         </button>
       </div>
 
-      {successMessage && (
-        <div className="p-3 rounded-lg bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-xs font-medium">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
+      {activeSubTab === 'materials' ? (
+        <TeacherMaterialStructureEditor />
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                教員用タスク管理
+              </div>
+              <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                定期テスト課題の範囲設定
+              </h1>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                定期テストの課題範囲や提出期限を設定・配信します。生徒のホーム画面に即座に共有されます。
+              </p>
+            </div>
 
-      {/* 新規課題作成フォーム */}
-      {isCreating && (
-        <form
-          onSubmit={handleCreateTask}
-          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5"
-        >
-          <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
-            <ClipboardList className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
-            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-              新規 定期テスト課題の範囲を入力
-            </h2>
+            <button
+              type="button"
+              onClick={() => setIsCreating(!isCreating)}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs transition-opacity hover:opacity-95 cursor-pointer shrink-0 shadow-xs"
+              style={{ backgroundColor: accentColor, color: accentForeground }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{isCreating ? 'フォームを閉じる' : '新規テスト課題を追加'}</span>
+            </button>
           </div>
+
+          {successMessage && (
+            <div className="p-3 rounded-lg bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-2 text-xs font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {/* 新規課題作成フォーム */}
+          {isCreating && (
+            <form
+              onSubmit={handleCreateTask}
+              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5"
+            >
+              <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <ClipboardList className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+                <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  新規 定期テスト課題の範囲を入力
+                </h2>
+              </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -181,9 +255,82 @@ export const TeacherTasksView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
-              定期テスト課題の範囲（具体的に打ち込んでください）
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                定期テスト課題の範囲（具体的に打ち込んでください）
+              </label>
+              <span className="text-[10px] text-zinc-400">
+                下記の登録済み教材をクリックすると自動入力されます
+              </span>
+            </div>
+
+            {/* 教科に応じた登録済み構造化教材のクイック挿入バー */}
+            {subjectMaterials.length > 0 && (
+              <div className="mb-2 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700/60 space-y-2">
+                <div className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                  <span>登録済み教材の構造から範囲をワンクリック挿入:</span>
+                </div>
+                <div className="space-y-1.5">
+                  {subjectMaterials.map((sm) => {
+                    const struct = sm.structure;
+                    if (!struct || !struct.chapters || struct.chapters.length === 0) {
+                      return (
+                        <div key={sm.id} className="flex items-center space-x-1.5 text-[11px]">
+                          <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                            {sm.name}:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleAppendScopeFromStructure(`『${sm.name}』指定範囲`, sm.id)}
+                            className="px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-[10px] cursor-pointer"
+                          >
+                            + 教材名を追加
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={sm.id} className="text-[11px] space-y-1">
+                        <div className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1">
+                          <BookOpen className="w-3 h-3 text-zinc-500" />
+                          <span>{sm.name}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 pl-4">
+                          {struct.chapters.map((ch) => {
+                            const firstSec = ch.sections[0];
+                            const lastSec = ch.sections[ch.sections.length - 1];
+                            const firstItem = firstSec?.items[0];
+                            const lastItem = lastSec?.items[lastSec?.items.length - 1];
+                            const rangeLabel =
+                              firstItem && lastItem
+                                ? `${ch.title}（${firstItem.label}〜${lastItem.label}）`
+                                : ch.pageStart && ch.pageEnd
+                                ? `${ch.title}（p.${ch.pageStart}〜p.${ch.pageEnd}）`
+                                : ch.title;
+
+                            return (
+                              <button
+                                key={ch.id}
+                                type="button"
+                                onClick={() =>
+                                  handleAppendScopeFromStructure(`『${sm.name}』${rangeLabel}`, sm.id)
+                                }
+                                className="px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-[10px] font-medium cursor-pointer transition-colors"
+                              >
+                                + {rangeLabel}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <textarea
               rows={3}
               value={scope}
@@ -315,6 +462,8 @@ export const TeacherTasksView: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

@@ -120,9 +120,6 @@ export const TeacherDashboardView: React.FC = () => {
           <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
             生徒の学習時間 統計情報
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            担当クラス・学年の各生徒の週間学習量、本日の記録状況、継続日数をリアルタイムで把握できます。
-          </p>
         </div>
       </div>
 

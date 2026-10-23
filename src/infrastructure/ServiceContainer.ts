@@ -6,19 +6,22 @@
 import {
   IAuthRepository,
   IMaterialRepository,
+  IStudentTaskRepository,
   IStudyRecordRepository,
   ITaskRepository,
 } from '../domain/repositories/index.ts';
-import { FirebaseAuthRepository } from './repositories/FirebaseAuthRepository.ts';
-import { LocalStorageMaterialRepository } from './repositories/LocalStorageMaterialRepository.ts';
-import { LocalStorageStudyRecordRepository } from './repositories/LocalStorageStudyRecordRepository.ts';
-import { LocalStorageTaskRepository } from './repositories/LocalStorageTaskRepository.ts';
+import {
+  ConoHaAuthRepository,
+  ConoHaMaterialRepository,
+  ConoHaStudentTaskRepository,
+  ConoHaStudyRecordRepository,
+  ConoHaTaskRepository,
+} from './repositories/ApiRepositories.ts';
 
 /**
  * ServiceContainer (DDD Dependency Injection Container)
  * 
- * 本番環境（Node.js + Express + PostgreSQL）
- * 仮デプロイ環境（Vercel + Supabase）
+ * ConoHa サーバー環境（ConoHa VPS / ConoHa WING / Node.js + Express + ファイルDB/MySQL）
  * およびオフライン・クライアント環境（LocalStorage + Firebase Auth）
  * のリポジトリ実装を透過的に切り替え可能にするコンテナ。
  */
@@ -27,17 +30,17 @@ export class ServiceContainer {
 
   public studyRecordRepository: IStudyRecordRepository;
   public taskRepository: ITaskRepository;
+  public studentTaskRepository: IStudentTaskRepository;
   public materialRepository: IMaterialRepository;
   public authRepository: IAuthRepository;
 
   private constructor() {
-    // 現在の環境・設定に応じたアダプタを生成
-    // 将来的に PostgreSQL や Supabase アダプタに差し替える際も
-    // ドメイン層・プレゼンテーション層の変更は一切不要。
-    this.studyRecordRepository = new LocalStorageStudyRecordRepository();
-    this.taskRepository = new LocalStorageTaskRepository();
-    this.materialRepository = new LocalStorageMaterialRepository();
-    this.authRepository = new FirebaseAuthRepository();
+    // ConoHa サーバー API 連携アダプタ（サーバー非起動時は LocalStorage へシームレスにフォールバック）
+    this.studyRecordRepository = new ConoHaStudyRecordRepository();
+    this.taskRepository = new ConoHaTaskRepository();
+    this.studentTaskRepository = new ConoHaStudentTaskRepository();
+    this.materialRepository = new ConoHaMaterialRepository();
+    this.authRepository = new ConoHaAuthRepository();
   }
 
   public static getInstance(): ServiceContainer {

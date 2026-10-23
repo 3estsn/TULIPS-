@@ -10,11 +10,13 @@ import {
   PlusCircle,
   BarChart3,
   Calendar,
+  CalendarCheck,
   Settings,
   Users,
   ClipboardList,
   GraduationCap,
   BookOpen,
+  Layers,
   type LucideIcon,
 } from 'lucide-react';
 import { NavTab, useApp } from '../../context/AppContext.tsx';
@@ -37,13 +39,14 @@ export const Sidebar: React.FC = () => {
     { id: 'home', label: 'ホーム', icon: Home },
     { id: 'record', label: '記録する', icon: PlusCircle },
     { id: 'stats', label: '統計', icon: BarChart3 },
-    { id: 'schedule', label: '予定', icon: Calendar },
+    { id: 'schedule', label: '計画・タスク', icon: CalendarCheck },
     { id: 'settings', label: '設定', icon: Settings },
   ];
 
   const teacherMenuItems: { id: NavTab; label: string; icon: LucideIcon }[] = [
     { id: 'teacher_stats', label: '生徒学習統計', icon: Users },
-    { id: 'teacher_tasks', label: '定期テスト課題設定', icon: ClipboardList },
+    { id: 'teacher_tasks', label: '定期テスト課題配信', icon: ClipboardList },
+    { id: 'teacher_materials', label: '教材構造マスター', icon: Layers },
     { id: 'settings', label: '設定', icon: Settings },
   ];
 

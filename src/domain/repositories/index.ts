@@ -7,6 +7,7 @@ import {
   ComprehensiveStatistics,
   Material,
   RegularTestTask,
+  StudentTask,
   StudyRecord,
   Subject,
   User,
@@ -15,7 +16,7 @@ import {
 
 /**
  * 学習記録リポジトリのインターフェイス (DDD Repository Interface)
- * Node.js+Express+PostgreSQL / Vercel+Supabase / LocalStorage / Firebase の
+ * ConoHa サーバー (Node.js+Express) / LocalStorage / Firebase の
  * いずれのバックエンド・データベース構成でも差し替え可能に設計。
  */
 export interface IStudyRecordRepository {
@@ -60,6 +61,30 @@ export interface ITaskRepository {
 }
 
 /**
+ * 生徒学習タスクリポジトリのインターフェイス (DDD Repository Interface)
+ * 参考書・問題集の構造から作成したタスク、完了チェック、日割りノルマ管理を行う。
+ */
+export interface IStudentTaskRepository {
+  /** ユーザーの全タスクを取得 */
+  getTasksByUser(userId: string): Promise<StudentTask[]>;
+
+  /** 指定IDのタスクを取得 */
+  getTaskById(id: string): Promise<StudentTask | null>;
+
+  /** 新しいタスクを追加 */
+  addTask(task: Omit<StudentTask, 'id' | 'createdAt' | 'updatedAt'>): Promise<StudentTask>;
+
+  /** タスクを更新 */
+  updateTask(id: string, updates: Partial<Omit<StudentTask, 'id' | 'createdAt'>>): Promise<StudentTask>;
+
+  /** タスク内アイテムの完了・未完了をトグル */
+  toggleItemCompletion(taskId: string, itemId: string, isCompleted: boolean): Promise<StudentTask>;
+
+  /** タスクを削除 */
+  deleteTask(id: string): Promise<boolean>;
+}
+
+/**
  * 教材・科目リポジトリのインターフェイス (DDD Repository Interface)
  */
 export interface IMaterialRepository {
@@ -69,8 +94,14 @@ export interface IMaterialRepository {
   /** 教材一覧を取得（科目別フィルタ可） */
   getMaterials(subjectId?: string): Promise<Material[]>;
 
-  /** 生徒が新しい教材を独自に追加 */
+  /** 教材を新規登録 */
   addMaterial(material: Omit<Material, 'id'>): Promise<Material>;
+
+  /** 教材情報・構造（章節・連番）を更新 */
+  updateMaterial(id: string, updates: Partial<Omit<Material, 'id'>>): Promise<Material>;
+
+  /** 教材を削除 */
+  deleteMaterial(id: string): Promise<boolean>;
 }
 
 /**

@@ -3,18 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import {
   ComprehensiveStatistics,
   Material,
   RegularTestTask,
+  StudentTask,
   Subject,
+  TaskPaceInfo,
   User,
   UserRole,
+  calculateTaskPace,
 } from '../domain/models/index.ts';
 import { services } from '../infrastructure/ServiceContainer.ts';
 
-export type NavTab = 'home' | 'record' | 'stats' | 'schedule' | 'settings' | 'teacher_stats' | 'teacher_tasks';
+export type NavTab =
+  | 'home'
+  | 'record'
+  | 'stats'
+  | 'schedule'
+  | 'settings'
+  | 'teacher_stats'
+  | 'teacher_tasks'
+  | 'teacher_materials';
 
 export const LIGHT_DEFAULT_ACCENT = '#219134';
 export const DARK_DEFAULT_ACCENT = '#e3fff2';
@@ -49,12 +60,29 @@ interface AppContextType {
   tasks: RegularTestTask[];
   subjects: Subject[];
   materials: Material[];
+  studentTasks: StudentTask[];
+  activeStudentTaskPaces: TaskPaceInfo[];
   isLoading: boolean;
   refreshData: () => Promise<void>;
   switchUserRole: (role: UserRole) => Promise<void>;
   loginWithGoogle: (role?: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   updateUserProfile: (updates: Partial<Omit<User, 'id' | 'email'>>) => Promise<void>;
+  
+  // 生徒学習タスク操作
+  addStudentTask: (task: Omit<StudentTask, 'id' | 'createdAt' | 'updatedAt'>) => Promise<StudentTask>;
+  updateStudentTask: (id: string, updates: Partial<Omit<StudentTask, 'id' | 'createdAt'>>) => Promise<StudentTask>;
+  toggleTaskItemCompletion: (taskId: string, itemId: string, isCompleted: boolean) => Promise<void>;
+  deleteStudentTask: (id: string) => Promise<void>;
+
+  // 教材・構造マスタ操作 (教員・生徒)
+  addMaterial: (material: Omit<Material, 'id'>) => Promise<Material>;
+  updateMaterial: (id: string, updates: Partial<Omit<Material, 'id'>>) => Promise<Material>;
+  deleteMaterial: (id: string) => Promise<boolean>;
+
+  // テスト課題からタスク作成への引き継ぎ状態
+  pendingRegularTaskForStudentPlan: RegularTestTask | null;
+  setPendingRegularTaskForStudentPlan: (task: RegularTestTask | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -83,6 +111,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<RegularTestTask[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
+  const [pendingRegularTaskForStudentPlan, setPendingRegularTaskForStudentPlan] = useState<RegularTestTask | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const accentForeground = getContrastTextColor(accentColor);
@@ -136,7 +166,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(user);
 
       if (user) {
-        const [statsData, tasksData, subjectsData, materialsData] = await Promise.all([
+        const studentId = user.role === 'student' ? user.id : 'student-001';
+        const [statsData, tasksData, subjectsData, materialsData, studentTasksData] = await Promise.all([
           services.studyRecordRepository.calculateStatistics(user.id),
           services.taskRepository.getTasks({
             grade: user.role === 'student' ? user.grade : undefined,
@@ -144,12 +175,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }),
           services.materialRepository.getSubjects(),
           services.materialRepository.getMaterials(),
+          services.studentTaskRepository.getTasksByUser(studentId),
         ]);
 
         setStats(statsData);
         setTasks(tasksData);
         setSubjects(subjectsData);
         setMaterials(materialsData);
+        setStudentTasks(studentTasksData);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -161,6 +194,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshData();
   }, []);
+
+  // 全アクティブタスクの日割りペース情報をリアルタイム算出
+  const activeStudentTaskPaces = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return studentTasks.map((t) => calculateTaskPace(t, today));
+  }, [studentTasks]);
+
+  // 生徒タスクの操作
+  const addStudentTask = async (
+    taskData: Omit<StudentTask, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<StudentTask> => {
+    const created = await services.studentTaskRepository.addTask(taskData);
+    setStudentTasks((prev) => [created, ...prev]);
+    return created;
+  };
+
+  const updateStudentTask = async (
+    id: string,
+    updates: Partial<Omit<StudentTask, 'id' | 'createdAt'>>
+  ): Promise<StudentTask> => {
+    const updated = await services.studentTaskRepository.updateTask(id, updates);
+    setStudentTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    return updated;
+  };
+
+  const toggleTaskItemCompletion = async (
+    taskId: string,
+    itemId: string,
+    isCompleted: boolean
+  ): Promise<void> => {
+    const updated = await services.studentTaskRepository.toggleItemCompletion(
+      taskId,
+      itemId,
+      isCompleted
+    );
+    setStudentTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
+  };
+
+  const deleteStudentTask = async (id: string): Promise<void> => {
+    await services.studentTaskRepository.deleteTask(id);
+    setStudentTasks((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // 教材・構造マスタ操作
+  const addMaterial = async (
+    materialData: Omit<Material, 'id'>
+  ): Promise<Material> => {
+    const created = await services.materialRepository.addMaterial(materialData);
+    setMaterials((prev) => [...prev, created]);
+    return created;
+  };
+
+  const updateMaterial = async (
+    id: string,
+    updates: Partial<Omit<Material, 'id'>>
+  ): Promise<Material> => {
+    const updated = await services.materialRepository.updateMaterial(id, updates);
+    setMaterials((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    return updated;
+  };
+
+  const deleteMaterial = async (id: string): Promise<boolean> => {
+    const ok = await services.materialRepository.deleteMaterial(id);
+    if (ok) {
+      setMaterials((prev) => prev.filter((m) => m.id !== id));
+    }
+    return ok;
+  };
 
   const switchUserRole = async (role: UserRole) => {
     setIsLoading(true);
@@ -214,12 +315,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tasks,
         subjects,
         materials,
+        studentTasks,
+        activeStudentTaskPaces,
         isLoading,
         refreshData,
         switchUserRole,
         loginWithGoogle,
         logout,
         updateUserProfile,
+        addStudentTask,
+        updateStudentTask,
+        toggleTaskItemCompletion,
+        deleteStudentTask,
+        addMaterial,
+        updateMaterial,
+        deleteMaterial,
+        pendingRegularTaskForStudentPlan,
+        setPendingRegularTaskForStudentPlan,
       }}
     >
       {children}
