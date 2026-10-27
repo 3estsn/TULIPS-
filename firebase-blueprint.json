@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile representation for students and teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["student", "teacher"] },
+        "grade": { "type": "number" },
+        "classRoom": { "type": "string", "maxLength": 50 },
+        "studentNumber": { "type": "number" },
+        "weeklyGoalMinutes": { "type": "number" },
+        "focusSubjectId": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "StudyRecord": {
+      "title": "StudyRecord",
+      "description": "Learning record entry for a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string", "maxLength": 50 },
+        "materialId": { "type": "string", "maxLength": 100 },
+        "materialName": { "type": "string", "maxLength": 200 },
+        "date": { "type": "string", "maxLength": 20 },
+        "durationMinutes": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "method": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "subjectId", "materialId", "materialName", "date", "durationMinutes"]
+    },
+    "RegularTestTask": {
+      "title": "RegularTestTask",
+      "description": "Exam task scope distributed by teacher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "subjectId": { "type": "string", "maxLength": 50 },
+        "targetGrade": { "type": "number" },
+        "targetClass": { "type": "string", "maxLength": 50 },
+        "scope": { "type": "string", "maxLength": 2000 },
+        "deadline": { "type": "string", "maxLength": 20 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "teacherId", "title", "subjectId", "scope", "deadline"]
+    },
+    "StudentTask": {
+      "title": "StudentTask",
+      "description": "Task created by student with unit items and daily quota",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "subjectId": { "type": "string", "maxLength": 50 },
+        "materialId": { "type": "string", "maxLength": 100 },
+        "materialName": { "type": "string", "maxLength": 200 },
+        "deadline": { "type": "string", "maxLength": 20 },
+        "bufferDays": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "title", "subjectId", "materialId", "deadline"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "Structured textbook or reference book",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subjectId": { "type": "string", "maxLength": 50 },
+        "name": { "type": "string", "maxLength": 200 },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["id", "subjectId", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/records/{recordId}": {
+      "schema": "StudyRecord",
+      "description": "Daily study records for students"
+    },
+    "/tasks/{taskId}": {
+      "schema": "RegularTestTask",
+      "description": "Regular test task scopes issued by teachers"
+    },
+    "/studentTasks/{studentTaskId}": {
+      "schema": "StudentTask",
+      "description": "Personalized study tasks set by students"
+    },
+    "/materials/{materialId}": {
+      "schema": "Material",
+      "description": "Master textbook and reference book structures"
+    }
+  }
+}

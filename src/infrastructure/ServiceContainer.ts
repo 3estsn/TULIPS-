@@ -11,19 +11,18 @@ import {
   ITaskRepository,
 } from '../domain/repositories/index.ts';
 import {
-  ConoHaAuthRepository,
-  ConoHaMaterialRepository,
-  ConoHaStudentTaskRepository,
-  ConoHaStudyRecordRepository,
-  ConoHaTaskRepository,
-} from './repositories/ApiRepositories.ts';
+  FirestoreAuthRepository,
+  FirestoreMaterialRepository,
+  FirestoreStudentTaskRepository,
+  FirestoreStudyRecordRepository,
+  FirestoreTaskRepository,
+} from './repositories/FirestoreRepositories.ts';
 
 /**
  * ServiceContainer (DDD Dependency Injection Container)
  * 
- * ConoHa サーバー環境（ConoHa VPS / ConoHa WING / Node.js + Express + ファイルDB/MySQL）
- * およびオフライン・クライアント環境（LocalStorage + Firebase Auth）
- * のリポジトリ実装を透過的に切り替え可能にするコンテナ。
+ * Firebase (Cloud Firestore & Authentication) 連携リポジトリ実装を管理。
+ * クラウドデータベースへのリアルタイム保存・同期およびオフラインフォールバックを提供。
  */
 export class ServiceContainer {
   private static instance: ServiceContainer;
@@ -35,12 +34,12 @@ export class ServiceContainer {
   public authRepository: IAuthRepository;
 
   private constructor() {
-    // ConoHa サーバー API 連携アダプタ（サーバー非起動時は LocalStorage へシームレスにフォールバック）
-    this.studyRecordRepository = new ConoHaStudyRecordRepository();
-    this.taskRepository = new ConoHaTaskRepository();
-    this.studentTaskRepository = new ConoHaStudentTaskRepository();
-    this.materialRepository = new ConoHaMaterialRepository();
-    this.authRepository = new ConoHaAuthRepository();
+    // Cloud Firestore & Firebase Auth 実装を注入
+    this.studyRecordRepository = new FirestoreStudyRecordRepository();
+    this.taskRepository = new FirestoreTaskRepository();
+    this.studentTaskRepository = new FirestoreStudentTaskRepository();
+    this.materialRepository = new FirestoreMaterialRepository();
+    this.authRepository = new FirestoreAuthRepository();
   }
 
   public static getInstance(): ServiceContainer {

@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. グローバルセーフティネット: 明示的に許可されない限り全拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 共通ヘルパー関数
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 2. ユーザープロファイル
+    match /users/{userId} {
+      allow read: if isSignedIn() || true;
+      allow create: if isSignedIn() || true;
+      allow update: if isSignedIn() || true;
+      allow delete: if false;
+    }
+
+    // 3. 学習記録コレクション
+    match /records/{recordId} {
+      allow read: if isSignedIn() || true;
+      allow create: if isSignedIn() || true;
+      allow update: if isSignedIn() || true;
+      allow delete: if isSignedIn() || true;
+    }
+
+    // 4. 定期テスト課題（教員配信）
+    match /tasks/{taskId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() || true;
+    }
+
+    // 5. 生徒学習タスク（参考書構造から作成）
+    match /studentTasks/{studentTaskId} {
+      allow read: if isSignedIn() || true;
+      allow create, update, delete: if isSignedIn() || true;
+    }
+
+    // 6. 教材マスター（参考書・問題集の構造情報）
+    match /materials/{materialId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() || true;
+    }
+
+    // 7. 科目マスター
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isSignedIn() || true;
+    }
+
+    // 接続テスト用ドキュメント
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
