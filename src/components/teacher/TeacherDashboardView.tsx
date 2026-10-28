@@ -80,6 +80,14 @@ export const TeacherDashboardView: React.FC = () => {
     };
 
     load();
+    const interval = setInterval(load, 4000);
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const openStudentDetail = async (summary: StudentSummary) => {

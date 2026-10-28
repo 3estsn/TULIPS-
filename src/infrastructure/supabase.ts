@@ -65,7 +65,24 @@ export function getSupabaseClient(): SupabaseClient | null {
   }
 }
 
-export function saveSupabaseConfig(url: string, anonKey: string): void {
+export async function syncSupabaseConfigFromServer(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.supabaseUrl && data?.supabaseAnonKey) {
+        const current = getStoredSupabaseConfig();
+        if (current.url !== data.supabaseUrl || current.anonKey !== data.supabaseAnonKey) {
+          saveSupabaseConfig(data.supabaseUrl, data.supabaseAnonKey, false);
+          return true;
+        }
+      }
+    }
+  } catch {}
+  return false;
+}
+
+export function saveSupabaseConfig(url: string, anonKey: string, syncToServer = true): void {
   try {
     localStorage.setItem('tulips_supabase_url', url.trim());
     localStorage.setItem('tulips_supabase_anon_key', anonKey.trim());
@@ -73,6 +90,14 @@ export function saveSupabaseConfig(url: string, anonKey: string): void {
     currentConfigKey = '';
     // 再度インスタンス作成
     getSupabaseClient();
+
+    if (syncToServer) {
+      fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supabaseUrl: url.trim(), supabaseAnonKey: anonKey.trim() }),
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error('[Supabase] Failed to save config to localStorage:', err);
   }
@@ -84,6 +109,11 @@ export function clearSupabaseConfig(): void {
     localStorage.removeItem('tulips_supabase_anon_key');
     cachedClient = null;
     currentConfigKey = '';
+    fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ supabaseUrl: '', supabaseAnonKey: '' }),
+    }).catch(() => {});
   } catch {}
 }
 

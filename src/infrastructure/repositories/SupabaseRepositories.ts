@@ -32,15 +32,18 @@ import {
   INITIAL_TEACHER,
   INITIAL_USER,
 } from '../seedData.ts';
-import { LocalStorageStudyRecordRepository } from './LocalStorageStudyRecordRepository.ts';
-import { LocalStorageTaskRepository } from './LocalStorageTaskRepository.ts';
-import { LocalStorageStudentTaskRepository } from './LocalStorageStudentTaskRepository.ts';
-import { LocalStorageMaterialRepository } from './LocalStorageMaterialRepository.ts';
+import {
+  ConoHaAuthRepository,
+  ConoHaMaterialRepository,
+  ConoHaStudentTaskRepository,
+  ConoHaStudyRecordRepository,
+  ConoHaTaskRepository,
+} from './ApiRepositories.ts';
 import { calculateComprehensiveStatistics } from '../../utils/statisticsCalculator.ts';
 
 // --- 学習記録 (Study Records) ---
 export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
-  private fallback = new LocalStorageStudyRecordRepository();
+  private fallback = new ConoHaStudyRecordRepository();
 
   async getRecordsByUser(userId: string): Promise<StudyRecord[]> {
     const client = getSupabaseClient();
@@ -160,7 +163,7 @@ export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
 
 // --- 定期テスト課題 (Regular Test Tasks) ---
 export class SupabaseTaskRepository implements ITaskRepository {
-  private fallback = new LocalStorageTaskRepository();
+  private fallback = new ConoHaTaskRepository();
 
   async getTasks(filter?: { grade?: number; classRoom?: string }): Promise<RegularTestTask[]> {
     const client = getSupabaseClient();
@@ -295,7 +298,7 @@ export class SupabaseTaskRepository implements ITaskRepository {
 
 // --- 生徒学習タスク (Student Tasks) ---
 export class SupabaseStudentTaskRepository implements IStudentTaskRepository {
-  private fallback = new LocalStorageStudentTaskRepository();
+  private fallback = new ConoHaStudentTaskRepository();
 
   async getTasksByUser(userId: string): Promise<StudentTask[]> {
     const client = getSupabaseClient();
@@ -450,7 +453,7 @@ export class SupabaseStudentTaskRepository implements IStudentTaskRepository {
 
 // --- 教材マスター (Materials) ---
 export class SupabaseMaterialRepository implements IMaterialRepository {
-  private fallback = new LocalStorageMaterialRepository();
+  private fallback = new ConoHaMaterialRepository();
 
   async getSubjects(): Promise<Subject[]> {
     const client = getSupabaseClient();
@@ -562,9 +565,10 @@ export class SupabaseMaterialRepository implements IMaterialRepository {
   }
 }
 
-// --- ユーザー & 認証 (Auth - Firebase Auth 連携 & Supabase同期) ---
+// --- ユーザー & 認証 (Auth - Firebase Auth 連携 & Supabase/ConoHa同期) ---
 export class SupabaseAuthRepository implements IAuthRepository {
   private localUser: User = { ...INITIAL_USER };
+  private conohaAuth = new ConoHaAuthRepository();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -591,6 +595,12 @@ export class SupabaseAuthRepository implements IAuthRepository {
             try {
               localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
             } catch {}
+            // ConoHa サーバーにも同期
+            fetch('/api/users/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.localUser),
+            }).catch(() => {});
           }
         });
       } catch (err) {
@@ -606,9 +616,16 @@ export class SupabaseAuthRepository implements IAuthRepository {
         const { data } = await client.from('users').select('*').eq('id', this.localUser.id).single();
         if (data) {
           this.localUser = { ...this.localUser, ...toUser(data) };
+          return { ...this.localUser };
         }
       } catch {}
     }
+    try {
+      const serverUser = await this.conohaAuth.getCurrentUser();
+      if (serverUser) {
+        this.localUser = { ...this.localUser, ...serverUser };
+      }
+    } catch {}
     return { ...this.localUser };
   }
 
@@ -634,6 +651,15 @@ export class SupabaseAuthRepository implements IAuthRepository {
       this.localUser = updatedUser;
       try {
         localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+      } catch {}
+
+      // ConoHa サーバー API にも即座に同期（別端末・先生ダッシュボードへ名簿反映）
+      try {
+        await fetch('/api/users/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedUser),
+        });
       } catch {}
 
       // Supabase の users テーブルにも Google アカウントの情報を同期保存
@@ -696,6 +722,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
         id: 'student-001',
       };
     }
+    try {
+      localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+    } catch {}
     return { ...this.localUser };
   }
 
@@ -704,6 +733,18 @@ export class SupabaseAuthRepository implements IAuthRepository {
       ...this.localUser,
       ...updates,
     };
+    try {
+      localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+    } catch {}
+
+    // ConoHa サーバー API にも同期（生徒名簿・メールアドレスを別端末へ共有）
+    try {
+      await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.localUser),
+      });
+    } catch {}
 
     const client = getSupabaseClient();
     if (client) {
@@ -737,6 +778,13 @@ export class SupabaseAuthRepository implements IAuthRepository {
         }
       } catch {}
     }
+    // ConoHa サーバー API (/api/students) から最新の生徒名簿を取得！
+    try {
+      const serverStudents = await this.conohaAuth.getStudentsList();
+      if (serverStudents && serverStudents.length > 0) {
+        return serverStudents;
+      }
+    } catch {}
     return [...INITIAL_STUDENTS];
   }
 }

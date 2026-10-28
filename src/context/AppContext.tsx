@@ -16,7 +16,7 @@ import {
   calculateTaskPace,
 } from '../domain/models/index.ts';
 import { services } from '../infrastructure/ServiceContainer.ts';
-import { subscribeToSupabaseRealtime } from '../infrastructure/supabase.ts';
+import { subscribeToSupabaseRealtime, syncSupabaseConfigFromServer } from '../infrastructure/supabase.ts';
 
 export type NavTab =
   | 'home'
@@ -195,14 +195,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshData();
 
-    // Supabase Realtime イベント（全テーブルの変更）を購読して自動同期
+    // サーバーから Supabase 設定を同期取得（別端末でも自動設定）
+    syncSupabaseConfigFromServer().then((updated) => {
+      if (updated) refreshData();
+    });
+
+    // 1. Supabase Realtime イベント（全テーブルの変更）を購読して自動同期
     const unsubscribe = subscribeToSupabaseRealtime((event) => {
       console.log('[Supabase Realtime Event]', event.table, event.eventType);
       refreshData();
     });
 
+    // 2. ConoHa サーバー SSE (/api/events) による全端末リアルタイム同期
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload?.event === 'data_changed') {
+            refreshData();
+          }
+        } catch {}
+      };
+    } catch {}
+
+    // 3. 5秒おきのバックアップ自動ポーリング（通信瞬断時も確実に最新化）
+    const interval = setInterval(() => {
+      refreshData();
+    }, 5000);
+
+    // 4. ウィンドウ・タブ復帰時の即時最新化
+    const onFocus = () => {
+      refreshData();
+    };
+    window.addEventListener('focus', onFocus);
+
     return () => {
       unsubscribe();
+      if (eventSource) eventSource.close();
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 

@@ -112,18 +112,45 @@ function loadDatabase(): ConoHaDatabase {
   return initialDb;
 }
 
+const sseClients: Response[] = [];
+
+function notifyClients(event = 'data_changed') {
+  for (const clientRes of sseClients) {
+    try {
+      clientRes.write(`data: ${JSON.stringify({ event, time: Date.now() })}\n\n`);
+    } catch {}
+  }
+}
+
 function saveDatabase(db: ConoHaDatabase): void {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+    notifyClients();
   } catch (err) {
     console.error('[ConoHa Server] Failed to write database file:', err);
   }
 }
 
 let db = loadDatabase();
+
+// --- Realtime SSE (全端末瞬時同期) ---
+app.get('/api/events', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  sseClients.push(res);
+  res.write(`data: ${JSON.stringify({ event: 'connected', time: Date.now() })}\n\n`);
+
+  req.on('close', () => {
+    const idx = sseClients.indexOf(res);
+    if (idx !== -1) sseClients.splice(idx, 1);
+  });
+});
 
 // --- ヘルスチェック & サーバー情報 ---
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -374,14 +401,81 @@ app.get('/api/students', (_req: Request, res: Response) => {
 
 app.patch('/api/auth/profile', (req: Request, res: Response) => {
   const { userId, ...updates } = req.body;
-  const idx = db.users.findIndex((u) => u.id === (userId || 'student-001'));
+  const targetId = userId || 'student-001';
+  const idx = db.users.findIndex((u) => u.id === targetId);
   if (idx !== -1) {
     db.users[idx] = { ...db.users[idx], ...updates };
     saveDatabase(db);
     res.json(db.users[idx]);
   } else {
-    res.status(404).json({ error: 'User not found' });
+    const newUser: User = {
+      id: targetId,
+      name: updates.name || '生徒',
+      email: updates.email || '',
+      role: updates.role || 'student',
+      grade: updates.grade,
+      classRoom: updates.classRoom,
+      studentNumber: updates.studentNumber,
+      weeklyGoalMinutes: updates.weeklyGoalMinutes || 900,
+      focusSubjectId: updates.focusSubjectId || 'math',
+      ...updates,
+    };
+    db.users.push(newUser);
+    saveDatabase(db);
+    res.json(newUser);
   }
+});
+
+// ユーザー・名簿同期 (Google アカウント連携や生徒名簿更新)
+app.post('/api/users/sync', (req: Request, res: Response) => {
+  const user: User = req.body;
+  if (!user || !user.id) {
+    res.status(400).json({ error: 'User id is required' });
+    return;
+  }
+  const idx = db.users.findIndex((u) => u.id === user.id);
+  if (idx !== -1) {
+    db.users[idx] = { ...db.users[idx], ...user };
+  } else {
+    db.users.push(user);
+  }
+  saveDatabase(db);
+  res.json(db.users[idx !== -1 ? idx : db.users.length - 1]);
+});
+
+app.post('/api/students', (req: Request, res: Response) => {
+  const student: User = {
+    ...req.body,
+    role: 'student',
+    id: req.body.id || `student-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+  };
+  const idx = db.users.findIndex((u) => u.id === student.id);
+  if (idx !== -1) {
+    db.users[idx] = { ...db.users[idx], ...student };
+  } else {
+    db.users.push(student);
+  }
+  saveDatabase(db);
+  res.status(201).json(student);
+});
+
+// --- 全端末自動設定共有 (Supabase / サーバー環境) ---
+app.get('/api/config', (_req: Request, res: Response) => {
+  res.json({
+    supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+  });
+});
+
+app.post('/api/config', (req: Request, res: Response) => {
+  const { supabaseUrl, supabaseAnonKey } = req.body;
+  if (supabaseUrl !== undefined) {
+    process.env.VITE_SUPABASE_URL = String(supabaseUrl).trim();
+  }
+  if (supabaseAnonKey !== undefined) {
+    process.env.VITE_SUPABASE_ANON_KEY = String(supabaseAnonKey).trim();
+  }
+  res.json({ success: true, supabaseUrl: process.env.VITE_SUPABASE_URL, supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY });
 });
 
 // --- 本番環境静的ファイル配信 (Vite dist/) ---
