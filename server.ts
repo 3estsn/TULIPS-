@@ -24,11 +24,20 @@ import {
   User,
 } from './src/domain/models/index.ts';
 
+import firebaseConfig from './firebase-applet-config.json';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+
 // 環境変数の読み込み (.env または .env.conoha)
 dotenv.config();
 
+const serverFirebaseApp = getApps().length === 0
+  ? initializeApp(firebaseConfig, 'server-app')
+  : getApps()[0];
+const serverDb = getFirestore(serverFirebaseApp, firebaseConfig.firestoreDatabaseId);
+
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.CONOHA_SERVER_HOST || process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'conoha_tulips_db.json');
@@ -125,7 +134,31 @@ app.get('/api/health', (_req: Request, res: Response) => {
     uptimeSeconds: Math.floor(process.uptime()),
     nodeVersion: process.version,
     dataDirectory: DATA_DIR,
+    firebaseProject: firebaseConfig.projectId,
   });
+});
+
+// --- Firebase Firestore 疎通確認エンドポイント ---
+app.get('/api/firebase-status', async (_req: Request, res: Response) => {
+  try {
+    await getDoc(doc(serverDb, 'test', 'connection'));
+    res.json({
+      status: 'ok',
+      connected: true,
+      projectId: firebaseConfig.projectId,
+      firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+      message: 'ConoHa サーバーから Firebase Firestore への疎通接続が正常に確認できました。',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    res.json({
+      status: 'warning',
+      connected: false,
+      error: err?.message || String(err),
+      projectId: firebaseConfig.projectId,
+      firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+    });
+  }
 });
 
 // --- 教科 (Subjects) ---

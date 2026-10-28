@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Palette,
@@ -16,9 +16,14 @@ import {
   LogOut,
   Save,
   CheckCircle,
+  Database,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext.tsx';
 import { UserRole } from '../../domain/models/index.ts';
+import { testFirestoreConnection } from '../../infrastructure/firebase.ts';
+import firebaseConfig from '../../../firebase-applet-config.json';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -45,6 +50,29 @@ export const SettingsView: React.FC = () => {
   const [focusSubjectId, setFocusSubjectId] = useState<string>(currentUser?.focusSubjectId || 'math');
   const [customHex, setCustomHex] = useState<string>(accentColor);
   const [savedMessage, setSavedMessage] = useState<string>('');
+  const [firebaseStatus, setFirebaseStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('checking');
+  const [firebaseStatusDetail, setFirebaseStatusDetail] = useState<string>('');
+
+  const runFirebaseTest = async () => {
+    setFirebaseStatus('checking');
+    try {
+      const ok = await testFirestoreConnection();
+      if (ok) {
+        setFirebaseStatus('connected');
+        setFirebaseStatusDetail('Cloud Firestoreとの通信に成功しました。リアルタイム同期が有効です。');
+      } else {
+        setFirebaseStatus('error');
+        setFirebaseStatusDetail('オフラインモードまたは接続エラーです。ネットワーク設定やFirebase Consoleの承認済みドメインを確認してください。');
+      }
+    } catch (err: any) {
+      setFirebaseStatus('error');
+      setFirebaseStatusDetail(err?.message || '接続エラーが発生しました。');
+    }
+  };
+
+  useEffect(() => {
+    runFirebaseTest();
+  }, []);
 
   const isTeacher = currentUser?.role === 'teacher';
 
@@ -134,6 +162,74 @@ export const SettingsView: React.FC = () => {
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
               クラス生徒の学習統計確認、定期テスト課題範囲の設定
             </p>
+          </button>
+        </div>
+      </div>
+
+      {/* クラウドデータベース連携（Firebase Firestore） */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+          <div className="flex items-center space-x-2">
+            <Database className="w-4 h-4 text-amber-500" />
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              クラウド連携（Firebase Firestore）
+            </h2>
+          </div>
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              firebaseStatus === 'connected'
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                : firebaseStatus === 'checking'
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+            }`}
+          >
+            {firebaseStatus === 'connected' && '● 接続完了 (同期中)'}
+            {firebaseStatus === 'checking' && '接続確認中...'}
+            {firebaseStatus === 'error' && '接続エラー / オフライン'}
+          </span>
+        </div>
+
+        <div className="space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/60 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700/60 font-mono">
+          <div className="flex justify-between">
+            <span className="text-zinc-400">Project ID:</span>
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200">{firebaseConfig.projectId}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-zinc-400">Database ID:</span>
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200">{firebaseConfig.firestoreDatabaseId}</span>
+          </div>
+        </div>
+
+        {firebaseStatusDetail && (
+          <div
+            className={`p-2.5 rounded-lg text-xs flex items-start space-x-2 ${
+              firebaseStatus === 'connected'
+                ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
+                : 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 border border-amber-200 dark:border-amber-800'
+            }`}
+          >
+            {firebaseStatus === 'connected' ? (
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            )}
+            <span>{firebaseStatusDetail}</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[11px] text-zinc-400">
+            ConoHaサーバーや外部端末からも同一DBと同期されます
+          </span>
+          <button
+            type="button"
+            onClick={runFirebaseTest}
+            disabled={firebaseStatus === 'checking'}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${firebaseStatus === 'checking' ? 'animate-spin' : ''}`} />
+            <span>接続テスト再実行</span>
           </button>
         </div>
       </div>

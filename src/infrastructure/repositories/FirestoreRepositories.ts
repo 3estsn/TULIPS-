@@ -52,6 +52,7 @@ import {
   INITIAL_USER,
 } from '../seedData.ts';
 import { LocalStorageStudyRecordRepository } from './LocalStorageStudyRecordRepository.ts';
+import { calculateComprehensiveStatistics } from '../../utils/statisticsCalculator.ts';
 
 /**
  * Firestore 学習記録リポジトリ
@@ -64,11 +65,10 @@ export class FirestoreStudyRecordRepository implements IStudyRecordRepository {
     try {
       const q = query(collection(db, path), where('userId', '==', userId));
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        return snap.docs
-          .map((d) => ({ ...d.data(), id: d.id } as StudyRecord))
-          .sort((a, b) => (a.date > b.date ? -1 : 1));
-      }
+      // Firestore接続成功時はFirestoreのデータを正とする（空配列の場合も含む）
+      return snap.docs
+        .map((d) => ({ ...d.data(), id: d.id } as StudyRecord))
+        .sort((a, b) => (a.date > b.date ? -1 : 1));
     } catch (err) {
       console.warn('Firestore getRecordsByUser error, falling back:', err);
     }
@@ -80,12 +80,10 @@ export class FirestoreStudyRecordRepository implements IStudyRecordRepository {
     try {
       const q = query(collection(db, path), where('userId', '==', userId));
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        return snap.docs
-          .map((d) => ({ ...d.data(), id: d.id } as StudyRecord))
-          .filter((r) => r.date >= startDate && r.date <= endDate)
-          .sort((a, b) => (a.date > b.date ? -1 : 1));
-      }
+      return snap.docs
+        .map((d) => ({ ...d.data(), id: d.id } as StudyRecord))
+        .filter((r) => r.date >= startDate && r.date <= endDate)
+        .sort((a, b) => (a.date > b.date ? -1 : 1));
     } catch (err) {
       console.warn('Firestore getRecordsByDateRange error, falling back:', err);
     }
@@ -96,9 +94,7 @@ export class FirestoreStudyRecordRepository implements IStudyRecordRepository {
     const path = 'records';
     try {
       const snap = await getDocs(collection(db, path));
-      if (!snap.empty) {
-        return snap.docs.map((d) => ({ ...d.data(), id: d.id } as StudyRecord));
-      }
+      return snap.docs.map((d) => ({ ...d.data(), id: d.id } as StudyRecord));
     } catch (err) {
       console.warn('Firestore getAllRecords error, falling back:', err);
     }
@@ -141,7 +137,13 @@ export class FirestoreStudyRecordRepository implements IStudyRecordRepository {
   }
 
   async calculateStatistics(userId: string, targetDate?: string): Promise<ComprehensiveStatistics> {
-    return this.fallback.calculateStatistics(userId, targetDate);
+    try {
+      const records = await this.getRecordsByUser(userId);
+      return calculateComprehensiveStatistics(records, targetDate);
+    } catch (err) {
+      console.warn('Firestore calculateStatistics error, falling back to local:', err);
+      return this.fallback.calculateStatistics(userId, targetDate);
+    }
   }
 }
 
