@@ -20,6 +20,8 @@ import {
   IStudyRecordRepository,
   ITaskRepository,
 } from '../../domain/repositories/index.ts';
+import { signInWithPopup, signOut } from 'firebase/auth';
+import { auth, googleAuthProvider } from '../firebase.ts';
 import { getSupabaseClient } from '../supabase.ts';
 import {
   INITIAL_MATERIALS,
@@ -560,9 +562,42 @@ export class SupabaseMaterialRepository implements IMaterialRepository {
   }
 }
 
-// --- ユーザー & 認証 (Auth) ---
+// --- ユーザー & 認証 (Auth - Firebase Auth 連携 & Supabase同期) ---
 export class SupabaseAuthRepository implements IAuthRepository {
   private localUser: User = { ...INITIAL_USER };
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('tulips_current_user');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            this.localUser = { ...this.localUser, ...parsed };
+          }
+        }
+      } catch {}
+
+      try {
+        auth.onAuthStateChanged((fbUser) => {
+          if (fbUser) {
+            this.localUser = {
+              ...this.localUser,
+              id: fbUser.uid,
+              name: fbUser.displayName || this.localUser.name,
+              email: fbUser.email || this.localUser.email,
+              isGoogleAccount: true,
+            };
+            try {
+              localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+            } catch {}
+          }
+        });
+      } catch (err) {
+        console.warn('[Firebase Auth] State listener error:', err);
+      }
+    }
+  }
 
   async getCurrentUser(): Promise<User | null> {
     const client = getSupabaseClient();
@@ -570,7 +605,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
       try {
         const { data } = await client.from('users').select('*').eq('id', this.localUser.id).single();
         if (data) {
-          this.localUser = toUser(data);
+          this.localUser = { ...this.localUser, ...toUser(data) };
         }
       } catch {}
     }
@@ -578,43 +613,75 @@ export class SupabaseAuthRepository implements IAuthRepository {
   }
 
   async loginWithGoogle(intendedRole: UserRole = 'student'): Promise<User> {
-    const client = getSupabaseClient();
-    if (client) {
-      try {
-        // Supabase Auth Google Provider (ブラウザ直遷移でJSONエラー画面が出るのを防止)
-        const { data, error } = await client.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-            skipBrowserRedirect: true,
-          },
-        });
-        if (error) {
-          console.warn('[Supabase] Google OAuth provider not enabled:', error.message);
-        } else if (data?.url) {
-          window.location.href = data.url;
-        }
-      } catch (err) {
-        console.warn('[Supabase] Google OAuth error, falling back:', err);
-      }
-    }
+    try {
+      const result = await signInWithPopup(auth, googleAuthProvider);
+      const fbUser = result.user;
 
-    if (intendedRole === 'teacher') {
-      this.localUser = { ...INITIAL_TEACHER };
-    } else {
-      this.localUser = { ...INITIAL_USER };
+      const updatedUser: User = {
+        ...this.localUser,
+        id: fbUser.uid,
+        name: fbUser.displayName || (intendedRole === 'teacher' ? '教員' : '生徒'),
+        email: fbUser.email || '',
+        role: intendedRole,
+        grade: intendedRole === 'student' ? (this.localUser.grade || 2) : undefined,
+        classRoom: intendedRole === 'student' ? (this.localUser.classRoom || '1組') : '2年学年主任・数学科',
+        studentNumber: intendedRole === 'student' ? (this.localUser.studentNumber || 14) : undefined,
+        weeklyGoalMinutes: this.localUser.weeklyGoalMinutes || 900,
+        focusSubjectId: this.localUser.focusSubjectId || 'math',
+        isGoogleAccount: true,
+      };
+
+      this.localUser = updatedUser;
+      try {
+        localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+      } catch {}
+
+      // Supabase の users テーブルにも Google アカウントの情報を同期保存
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          await client.from('users').upsert({
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            grade: updatedUser.grade ?? null,
+            class_room: updatedUser.classRoom ?? null,
+            student_number: updatedUser.studentNumber ?? null,
+            weekly_goal_minutes: updatedUser.weeklyGoalMinutes ?? 900,
+            focus_subject_id: updatedUser.focusSubjectId ?? 'math',
+          });
+        } catch (dbErr) {
+          console.warn('[Supabase] Failed to sync user to users table:', dbErr);
+        }
+      }
+
+      return { ...this.localUser };
+    } catch (error: any) {
+      console.warn('[Firebase Auth] Google login error:', error);
+      if (error?.code === 'auth/unauthorized-domain') {
+        throw new Error(
+          `Firebase未承認ドメイン: Firebase Console (Authentication > Settings > Authorized domains) に「${window.location.hostname}」を追加してください。`
+        );
+      } else if (error?.code === 'auth/popup-closed-by-user') {
+        throw new Error('Googleログインのポップアップが閉じられました。');
+      } else if (error?.code === 'auth/cancelled-popup-request') {
+        throw new Error('ログイン要求がキャンセルされました。もう一度お試しください。');
+      }
+      throw error;
     }
-    return { ...this.localUser };
   }
 
   async logout(): Promise<void> {
-    const client = getSupabaseClient();
-    if (client) {
-      try {
-        await client.auth.signOut();
-      } catch {}
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('[Firebase] SignOut error:', e);
     }
     this.localUser = { ...INITIAL_USER };
+    try {
+      localStorage.removeItem('tulips_current_user');
+    } catch {}
   }
 
   async switchRole(role: UserRole): Promise<User> {
