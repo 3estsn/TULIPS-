@@ -19,11 +19,19 @@ import {
   Database,
   RefreshCw,
   AlertCircle,
+  Radio,
+  Copy,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext.tsx';
 import { UserRole } from '../../domain/models/index.ts';
-import { testFirestoreConnection } from '../../infrastructure/firebase.ts';
-import firebaseConfig from '../../../firebase-applet-config.json';
+import {
+  getStoredSupabaseConfig,
+  saveSupabaseConfig,
+  testSupabaseConnection,
+} from '../../infrastructure/supabase.ts';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -50,28 +58,42 @@ export const SettingsView: React.FC = () => {
   const [focusSubjectId, setFocusSubjectId] = useState<string>(currentUser?.focusSubjectId || 'math');
   const [customHex, setCustomHex] = useState<string>(accentColor);
   const [savedMessage, setSavedMessage] = useState<string>('');
-  const [firebaseStatus, setFirebaseStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('checking');
-  const [firebaseStatusDetail, setFirebaseStatusDetail] = useState<string>('');
+  const initialSupabase = getStoredSupabaseConfig();
+  const [supabaseUrl, setSupabaseUrl] = useState<string>(initialSupabase.url);
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(initialSupabase.anonKey);
+  const [supabaseStatus, setSupabaseStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('idle');
+  const [supabaseStatusDetail, setSupabaseStatusDetail] = useState<string>('');
+  const [isSqlOpen, setIsSqlOpen] = useState<boolean>(false);
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
-  const runFirebaseTest = async () => {
-    setFirebaseStatus('checking');
+  const runSupabaseTest = async (urlToTest?: string, keyToTest?: string) => {
+    if (urlToTest !== undefined && keyToTest !== undefined) {
+      saveSupabaseConfig(urlToTest, keyToTest);
+    }
+    setSupabaseStatus('checking');
     try {
-      const ok = await testFirestoreConnection();
-      if (ok) {
-        setFirebaseStatus('connected');
-        setFirebaseStatusDetail('Cloud Firestoreとの通信に成功しました。リアルタイム同期が有効です。');
+      const res = await testSupabaseConnection();
+      if (res.connected) {
+        setSupabaseStatus('connected');
+        setSupabaseStatusDetail(res.message);
       } else {
-        setFirebaseStatus('error');
-        setFirebaseStatusDetail('オフラインモードまたは接続エラーです。ネットワーク設定やFirebase Consoleの承認済みドメインを確認してください。');
+        setSupabaseStatus('error');
+        setSupabaseStatusDetail(res.error ? `${res.message} (${res.error})` : res.message);
       }
     } catch (err: any) {
-      setFirebaseStatus('error');
-      setFirebaseStatusDetail(err?.message || '接続エラーが発生しました。');
+      setSupabaseStatus('error');
+      setSupabaseStatusDetail(err?.message || '接続エラーが発生しました。');
     }
   };
 
   useEffect(() => {
-    runFirebaseTest();
+    const cfg = getStoredSupabaseConfig();
+    if (cfg.url && cfg.anonKey) {
+      runSupabaseTest();
+    } else {
+      setSupabaseStatus('idle');
+      setSupabaseStatusDetail('SupabaseのURLとAnon Keyを入力して保存すると、リアルタイム同期が開始されます。');
+    }
   }, []);
 
   const isTeacher = currentUser?.role === 'teacher';
@@ -166,72 +188,226 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* クラウドデータベース連携（Firebase Firestore） */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
+      {/* クラウドデータベース & リアルタイム同期（Supabase） */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
         <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
           <div className="flex items-center space-x-2">
-            <Database className="w-4 h-4 text-amber-500" />
+            <Radio className="w-4 h-4 text-emerald-500 animate-pulse" />
             <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-              クラウド連携（Firebase Firestore）
+              Supabase リアルタイム同期
             </h2>
           </div>
           <span
             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-              firebaseStatus === 'connected'
+              supabaseStatus === 'connected'
                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                : firebaseStatus === 'checking'
+                : supabaseStatus === 'checking'
                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                : supabaseStatus === 'error'
+                ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
             }`}
           >
-            {firebaseStatus === 'connected' && '● 接続完了 (同期中)'}
-            {firebaseStatus === 'checking' && '接続確認中...'}
-            {firebaseStatus === 'error' && '接続エラー / オフライン'}
+            {supabaseStatus === 'connected' && '● リアルタイム同期中 (WebSocket接続済)'}
+            {supabaseStatus === 'checking' && '接続テスト中...'}
+            {supabaseStatus === 'error' && '接続エラー'}
+            {supabaseStatus === 'idle' && '○ 未設定 (ローカル動作中)'}
           </span>
         </div>
 
-        <div className="space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/60 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700/60 font-mono">
-          <div className="flex justify-between">
-            <span className="text-zinc-400">Project ID:</span>
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200">{firebaseConfig.projectId}</span>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Supabaseと接続すると、学習記録の追加や定期テスト課題の配信・完了チェックが全端末間で瞬時にリアルタイム反映されます。
+        </p>
+
+        {/* 接続設定フォーム */}
+        <div className="space-y-3 pt-1">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+              Supabase Project URL
+            </label>
+            <input
+              type="text"
+              value={supabaseUrl}
+              onChange={(e) => setSupabaseUrl(e.target.value)}
+              placeholder="https://your-project.supabase.co"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden"
+            />
           </div>
-          <div className="flex justify-between">
-            <span className="text-zinc-400">Database ID:</span>
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200">{firebaseConfig.firestoreDatabaseId}</span>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+              Supabase Anon Key（公開APIキー）
+            </label>
+            <input
+              type="password"
+              value={supabaseAnonKey}
+              onChange={(e) => setSupabaseAnonKey(e.target.value)}
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden"
+            />
           </div>
         </div>
 
-        {firebaseStatusDetail && (
+        {supabaseStatusDetail && (
           <div
             className={`p-2.5 rounded-lg text-xs flex items-start space-x-2 ${
-              firebaseStatus === 'connected'
+              supabaseStatus === 'connected'
                 ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
-                : 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 border border-amber-200 dark:border-amber-800'
+                : supabaseStatus === 'error'
+                ? 'bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200 border border-rose-200 dark:border-rose-800'
+                : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700'
             }`}
           >
-            {firebaseStatus === 'connected' ? (
+            {supabaseStatus === 'connected' ? (
               <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            ) : supabaseStatus === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <Database className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" />
             )}
-            <span>{firebaseStatusDetail}</span>
+            <span>{supabaseStatusDetail}</span>
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-[11px] text-zinc-400">
-            ConoHaサーバーや外部端末からも同一DBと同期されます
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <button
             type="button"
-            onClick={runFirebaseTest}
-            disabled={firebaseStatus === 'checking'}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            onClick={() => setIsSqlOpen(!isSqlOpen)}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1 cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${firebaseStatus === 'checking' ? 'animate-spin' : ''}`} />
-            <span>接続テスト再実行</span>
+            <span>Supabaseテーブル作成SQL</span>
+            {isSqlOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => runSupabaseTest(supabaseUrl, supabaseAnonKey)}
+            disabled={supabaseStatus === 'checking'}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-opacity hover:opacity-95 cursor-pointer"
+            style={{ backgroundColor: accentColor, color: accentForeground }}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${supabaseStatus === 'checking' ? 'animate-spin' : ''}`} />
+            <span>設定を保存してリアルタイム同期テスト</span>
           </button>
         </div>
+
+        {/* テーブル作成SQLのアコーディオン */}
+        {isSqlOpen && (
+          <div className="mt-2 p-3 bg-zinc-900 text-zinc-100 rounded-xl text-[11px] font-mono space-y-2 border border-zinc-700">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-400">Supabase SQL Editor で実行するコード:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`-- テーブル作成とRealtime有効化
+CREATE TABLE IF NOT EXISTS public.study_records (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    material_id TEXT NOT NULL,
+    material_name TEXT NOT NULL,
+    date TEXT NOT NULL,
+    duration_minutes INTEGER NOT NULL,
+    notes TEXT,
+    method TEXT DEFAULT 'manual',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.regular_test_tasks (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT NOT NULL,
+    teacher_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    target_grade INTEGER NOT NULL,
+    target_class TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    deadline TEXT NOT NULL,
+    notes TEXT,
+    material_ids JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.student_tasks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    material_id TEXT NOT NULL,
+    material_name TEXT NOT NULL,
+    regular_test_task_id TEXT,
+    deadline TEXT NOT NULL,
+    buffer_days INTEGER DEFAULT 1,
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.materials (
+    id TEXT PRIMARY KEY,
+    subject_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT false,
+    structure JSONB DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS public.subjects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    color TEXT
+);
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    role TEXT NOT NULL DEFAULT 'student',
+    grade INTEGER,
+    class_room TEXT,
+    student_number INTEGER,
+    weekly_goal_minutes INTEGER DEFAULT 900,
+    focus_subject_id TEXT DEFAULT 'math'
+);
+ALTER PUBLICATION supabase_realtime ADD TABLE public.study_records;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.regular_test_tasks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.materials;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.subjects;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
+ALTER TABLE public.study_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.regular_test_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public all access on study_records" ON public.study_records FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all access on regular_test_tasks" ON public.regular_test_tasks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all access on student_tasks" ON public.student_tasks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all access on materials" ON public.materials FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all access on subjects" ON public.subjects FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all access on users" ON public.users FOR ALL USING (true) WITH CHECK (true);
+INSERT INTO public.subjects (id, name, category, color) VALUES
+('japanese', '国語', 'japanese', '#ef4444'),
+('math', '数学', 'math', '#3b82f6'),
+('science', '理科', 'science', '#10b981'),
+('social', '社会', 'social', '#eab308'),
+('english', '英語', 'english', '#8b5cf6'),
+('info', '情報', 'info', '#06b6d4'),
+('other', 'その他', 'other', '#64748b')
+ON CONFLICT (id) DO NOTHING;`);
+                  setCopySuccess(true);
+                  setTimeout(() => setCopySuccess(false), 2500);
+                }}
+                className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-[10px] flex items-center space-x-1 cursor-pointer"
+              >
+                {copySuccess ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copySuccess ? 'コピーしました！' : 'SQLをコピー'}</span>
+              </button>
+            </div>
+            <pre className="overflow-x-auto p-2 bg-black/50 rounded text-emerald-400 text-[10px] max-h-40">
+              {`-- プロジェクト直下の supabase-schema.sql にも完全なSQLスクリプトを保存しています
+ALTER PUBLICATION supabase_realtime ADD TABLE public.study_records;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.regular_test_tasks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* UI外観設定（テーマ & アクセントカラー） */}

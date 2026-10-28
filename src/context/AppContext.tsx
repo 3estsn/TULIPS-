@@ -16,6 +16,7 @@ import {
   calculateTaskPace,
 } from '../domain/models/index.ts';
 import { services } from '../infrastructure/ServiceContainer.ts';
+import { subscribeToSupabaseRealtime } from '../infrastructure/supabase.ts';
 
 export type NavTab =
   | 'home'
@@ -193,6 +194,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     refreshData();
+
+    // Supabase Realtime イベント（全テーブルの変更）を購読して自動同期
+    const unsubscribe = subscribeToSupabaseRealtime((event) => {
+      console.log('[Supabase Realtime Event]', event.table, event.eventType);
+      refreshData();
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // 全アクティブタスクの日割りペース情報をリアルタイム算出

@@ -11,18 +11,18 @@ import {
   ITaskRepository,
 } from '../domain/repositories/index.ts';
 import {
-  FirestoreAuthRepository,
-  FirestoreMaterialRepository,
-  FirestoreStudentTaskRepository,
-  FirestoreStudyRecordRepository,
-  FirestoreTaskRepository,
-} from './repositories/FirestoreRepositories.ts';
+  SupabaseAuthRepository,
+  SupabaseMaterialRepository,
+  SupabaseStudentTaskRepository,
+  SupabaseStudyRecordRepository,
+  SupabaseTaskRepository,
+} from './repositories/SupabaseRepositories.ts';
 
 /**
  * ServiceContainer (DDD Dependency Injection Container)
  * 
- * Firebase (Cloud Firestore & Authentication) 連携リポジトリ実装を管理。
- * クラウドデータベースへのリアルタイム保存・同期およびオフラインフォールバックを提供。
+ * Supabase (PostgreSQL & Realtime WebSocket) 連携リポジトリ実装を管理。
+ * クラウドデータベースへのリアルタイム双方向同期およびオフラインフォールバックを提供。
  */
 export class ServiceContainer {
   private static instance: ServiceContainer;
@@ -34,12 +34,12 @@ export class ServiceContainer {
   public authRepository: IAuthRepository;
 
   private constructor() {
-    // Cloud Firestore & Firebase Auth 実装を注入
-    this.studyRecordRepository = new FirestoreStudyRecordRepository();
-    this.taskRepository = new FirestoreTaskRepository();
-    this.studentTaskRepository = new FirestoreStudentTaskRepository();
-    this.materialRepository = new FirestoreMaterialRepository();
-    this.authRepository = new FirestoreAuthRepository();
+    // Supabase (PostgreSQL + Realtime) 実装を注入
+    this.studyRecordRepository = new SupabaseStudyRecordRepository();
+    this.taskRepository = new SupabaseTaskRepository();
+    this.studentTaskRepository = new SupabaseStudentTaskRepository();
+    this.materialRepository = new SupabaseMaterialRepository();
+    this.authRepository = new SupabaseAuthRepository();
   }
 
   public static getInstance(): ServiceContainer {

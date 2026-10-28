@@ -1,0 +1,743 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import {
+  ComprehensiveStatistics,
+  Material,
+  RegularTestTask,
+  StudentTask,
+  StudyRecord,
+  Subject,
+  User,
+  UserRole,
+} from '../../domain/models/index.ts';
+import {
+  IAuthRepository,
+  IMaterialRepository,
+  IStudentTaskRepository,
+  IStudyRecordRepository,
+  ITaskRepository,
+} from '../../domain/repositories/index.ts';
+import { getSupabaseClient } from '../supabase.ts';
+import {
+  INITIAL_MATERIALS,
+  INITIAL_STUDENTS,
+  INITIAL_STUDENT_TASKS,
+  INITIAL_SUBJECTS,
+  INITIAL_TASKS,
+  INITIAL_TEACHER,
+  INITIAL_USER,
+} from '../seedData.ts';
+import { LocalStorageStudyRecordRepository } from './LocalStorageStudyRecordRepository.ts';
+import { LocalStorageTaskRepository } from './LocalStorageTaskRepository.ts';
+import { LocalStorageStudentTaskRepository } from './LocalStorageStudentTaskRepository.ts';
+import { LocalStorageMaterialRepository } from './LocalStorageMaterialRepository.ts';
+import { calculateComprehensiveStatistics } from '../../utils/statisticsCalculator.ts';
+
+// --- 学習記録 (Study Records) ---
+export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
+  private fallback = new LocalStorageStudyRecordRepository();
+
+  async getRecordsByUser(userId: string): Promise<StudyRecord[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getRecordsByUser(userId);
+
+    try {
+      const { data, error } = await client
+        .from('study_records')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        return data.map(toStudyRecord);
+      }
+    } catch (err) {
+      console.warn('[Supabase] getRecordsByUser error, falling back:', err);
+    }
+    return this.fallback.getRecordsByUser(userId);
+  }
+
+  async getRecordsByDateRange(userId: string, startDate: string, endDate: string): Promise<StudyRecord[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getRecordsByDateRange(userId, startDate, endDate);
+
+    try {
+      const { data, error } = await client
+        .from('study_records')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        return data.map(toStudyRecord);
+      }
+    } catch (err) {
+      console.warn('[Supabase] getRecordsByDateRange error, falling back:', err);
+    }
+    return this.fallback.getRecordsByDateRange(userId, startDate, endDate);
+  }
+
+  async getAllRecords(): Promise<StudyRecord[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getAllRecords();
+
+    try {
+      const { data, error } = await client
+        .from('study_records')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        return data.map(toStudyRecord);
+      }
+    } catch (err) {
+      console.warn('[Supabase] getAllRecords error, falling back:', err);
+    }
+    return this.fallback.getAllRecords();
+  }
+
+  async addRecord(record: Omit<StudyRecord, 'id' | 'createdAt'>): Promise<StudyRecord> {
+    const id = `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const createdAt = new Date().toISOString();
+    const created: StudyRecord = { ...record, id, createdAt };
+
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const { error } = await client.from('study_records').insert({
+          id,
+          user_id: record.userId,
+          subject_id: record.subjectId,
+          material_id: record.materialId,
+          material_name: record.materialName,
+          date: record.date,
+          duration_minutes: record.durationMinutes,
+          notes: record.notes || null,
+          method: record.method || 'manual',
+          created_at: createdAt,
+        });
+        if (error) {
+          console.warn('[Supabase] Failed to insert record:', error);
+        }
+      } catch (err) {
+        console.warn('[Supabase] insert record exception:', err);
+      }
+    }
+
+    try {
+      await this.fallback.addRecord(record);
+    } catch {}
+    return created;
+  }
+
+  async deleteRecord(id: string): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('study_records').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] delete record error:', err);
+      }
+    }
+    return this.fallback.deleteRecord(id);
+  }
+
+  async calculateStatistics(userId: string, targetDate?: string): Promise<ComprehensiveStatistics> {
+    const records = await this.getRecordsByUser(userId);
+    return calculateComprehensiveStatistics(records, targetDate);
+  }
+}
+
+// --- 定期テスト課題 (Regular Test Tasks) ---
+export class SupabaseTaskRepository implements ITaskRepository {
+  private fallback = new LocalStorageTaskRepository();
+
+  async getTasks(filter?: { grade?: number; classRoom?: string }): Promise<RegularTestTask[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getTasks(filter);
+
+    try {
+      let q = client.from('regular_test_tasks').select('*').order('created_at', { ascending: false });
+      if (filter?.grade !== undefined) {
+        q = q.eq('target_grade', filter.grade);
+      }
+      if (filter?.classRoom && filter.classRoom !== '全クラス') {
+        q = q.or(`target_class.eq.全クラス,target_class.eq.${filter.classRoom}`);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map(toRegularTestTask);
+      } else {
+        // テーブルが空なら初期シードを登録
+        for (const t of INITIAL_TASKS) {
+          try {
+            await client.from('regular_test_tasks').upsert({
+              id: t.id,
+              teacher_id: t.teacherId,
+              teacher_name: t.teacherName,
+              title: t.title,
+              subject_id: t.subjectId,
+              target_grade: t.targetGrade,
+              target_class: t.targetClass,
+              scope: t.scope,
+              deadline: t.deadline,
+              notes: t.notes || null,
+              material_ids: t.materialIds || [],
+              created_at: t.createdAt,
+            });
+          } catch {}
+        }
+        return [...INITIAL_TASKS];
+      }
+    } catch (err) {
+      console.warn('[Supabase] getTasks error, using fallback:', err);
+    }
+    return this.fallback.getTasks(filter);
+  }
+
+  async getTaskById(id: string): Promise<RegularTestTask | null> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getTaskById(id);
+
+    try {
+      const { data, error } = await client
+        .from('regular_test_tasks')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (!error && data) return toRegularTestTask(data);
+    } catch {}
+    return this.fallback.getTaskById(id);
+  }
+
+  async addTask(task: Omit<RegularTestTask, 'id' | 'createdAt'>): Promise<RegularTestTask> {
+    const id = `rtt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const createdAt = new Date().toISOString();
+    const created: RegularTestTask = { ...task, id, createdAt };
+
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('regular_test_tasks').insert({
+          id,
+          teacher_id: task.teacherId,
+          teacher_name: task.teacherName,
+          title: task.title,
+          subject_id: task.subjectId,
+          target_grade: task.targetGrade,
+          target_class: task.targetClass,
+          scope: task.scope,
+          deadline: task.deadline,
+          notes: task.notes || null,
+          material_ids: task.materialIds || [],
+          created_at: createdAt,
+        });
+      } catch (err) {
+        console.warn('[Supabase] addTask error:', err);
+      }
+    }
+
+    try {
+      await this.fallback.addTask(task);
+    } catch {}
+    return created;
+  }
+
+  async updateTask(
+    id: string,
+    updates: Partial<Omit<RegularTestTask, 'id' | 'createdAt'>>
+  ): Promise<RegularTestTask> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const payload: any = {};
+        if (updates.title !== undefined) payload.title = updates.title;
+        if (updates.subjectId !== undefined) payload.subject_id = updates.subjectId;
+        if (updates.targetGrade !== undefined) payload.target_grade = updates.targetGrade;
+        if (updates.targetClass !== undefined) payload.target_class = updates.targetClass;
+        if (updates.scope !== undefined) payload.scope = updates.scope;
+        if (updates.deadline !== undefined) payload.deadline = updates.deadline;
+        if (updates.notes !== undefined) payload.notes = updates.notes;
+        if (updates.materialIds !== undefined) payload.material_ids = updates.materialIds;
+
+        await client.from('regular_test_tasks').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] updateTask error:', err);
+      }
+    }
+    return this.fallback.updateTask(id, updates);
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('regular_test_tasks').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] deleteTask error:', err);
+      }
+    }
+    return this.fallback.deleteTask(id);
+  }
+}
+
+// --- 生徒学習タスク (Student Tasks) ---
+export class SupabaseStudentTaskRepository implements IStudentTaskRepository {
+  private fallback = new LocalStorageStudentTaskRepository();
+
+  async getTasksByUser(userId: string): Promise<StudentTask[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getTasksByUser(userId);
+
+    try {
+      const { data, error } = await client
+        .from('student_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map(toStudentTask);
+      } else {
+        // 初回シード投入
+        for (const st of INITIAL_STUDENT_TASKS) {
+          if (st.userId === userId) {
+            try {
+              await client.from('student_tasks').upsert({
+                id: st.id,
+                user_id: st.userId,
+                title: st.title,
+                subject_id: st.subjectId,
+                material_id: st.materialId,
+                material_name: st.materialName,
+                regular_test_task_id: st.regularTestTaskId || null,
+                deadline: st.deadline,
+                buffer_days: st.bufferDays,
+                items: st.items,
+                created_at: st.createdAt,
+                updated_at: st.updatedAt,
+              });
+            } catch {}
+          }
+        }
+        return INITIAL_STUDENT_TASKS.filter((st) => st.userId === userId);
+      }
+    } catch (err) {
+      console.warn('[Supabase] getTasksByUser error, using fallback:', err);
+    }
+    return this.fallback.getTasksByUser(userId);
+  }
+
+  async getTaskById(id: string): Promise<StudentTask | null> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getTaskById(id);
+
+    try {
+      const { data, error } = await client
+        .from('student_tasks')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (!error && data) return toStudentTask(data);
+    } catch {}
+    return this.fallback.getTaskById(id);
+  }
+
+  async addTask(task: Omit<StudentTask, 'id' | 'createdAt' | 'updatedAt'>): Promise<StudentTask> {
+    const id = `stask-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const nowIso = new Date().toISOString();
+    const created: StudentTask = { ...task, id, createdAt: nowIso, updatedAt: nowIso };
+
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('student_tasks').insert({
+          id,
+          user_id: task.userId,
+          title: task.title,
+          subject_id: task.subjectId,
+          material_id: task.materialId,
+          material_name: task.materialName,
+          regular_test_task_id: task.regularTestTaskId || null,
+          deadline: task.deadline,
+          buffer_days: task.bufferDays,
+          items: task.items,
+          created_at: nowIso,
+          updated_at: nowIso,
+        });
+      } catch (err) {
+        console.warn('[Supabase] addTask error:', err);
+      }
+    }
+
+    try {
+      await this.fallback.addTask(task);
+    } catch {}
+    return created;
+  }
+
+  async updateTask(
+    id: string,
+    updates: Partial<Omit<StudentTask, 'id' | 'createdAt'>>
+  ): Promise<StudentTask> {
+    const nowIso = new Date().toISOString();
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const payload: any = { updated_at: nowIso };
+        if (updates.title !== undefined) payload.title = updates.title;
+        if (updates.subjectId !== undefined) payload.subject_id = updates.subjectId;
+        if (updates.materialId !== undefined) payload.material_id = updates.materialId;
+        if (updates.materialName !== undefined) payload.material_name = updates.materialName;
+        if (updates.deadline !== undefined) payload.deadline = updates.deadline;
+        if (updates.bufferDays !== undefined) payload.buffer_days = updates.bufferDays;
+        if (updates.items !== undefined) payload.items = updates.items;
+
+        await client.from('student_tasks').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] updateTask error:', err);
+      }
+    }
+    return this.fallback.updateTask(id, updates);
+  }
+
+  async toggleItemCompletion(
+    taskId: string,
+    itemId: string,
+    isCompleted: boolean
+  ): Promise<StudentTask> {
+    const task = await this.getTaskById(taskId);
+    if (!task) throw new Error('Task not found');
+
+    const updatedItems = task.items.map((it) =>
+      it.id === itemId
+        ? {
+            ...it,
+            isCompleted,
+            completedAt: isCompleted ? new Date().toISOString() : undefined,
+          }
+        : it
+    );
+
+    return this.updateTask(taskId, { items: updatedItems });
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('student_tasks').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] deleteTask error:', err);
+      }
+    }
+    return this.fallback.deleteTask(id);
+  }
+}
+
+// --- 教材マスター (Materials) ---
+export class SupabaseMaterialRepository implements IMaterialRepository {
+  private fallback = new LocalStorageMaterialRepository();
+
+  async getSubjects(): Promise<Subject[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getSubjects();
+
+    try {
+      const { data, error } = await client.from('subjects').select('*');
+      if (!error && data && data.length > 0) {
+        return data as Subject[];
+      } else if (client) {
+        // 初期シード投入
+        for (const s of INITIAL_SUBJECTS) {
+          try {
+            await client.from('subjects').upsert(s);
+          } catch {}
+        }
+        return [...INITIAL_SUBJECTS];
+      }
+    } catch {}
+    return this.fallback.getSubjects();
+  }
+
+  async getMaterials(subjectId?: string): Promise<Material[]> {
+    const client = getSupabaseClient();
+    if (!client) return this.fallback.getMaterials(subjectId);
+
+    try {
+      let q = client.from('materials').select('*');
+      if (subjectId) q = q.eq('subject_id', subjectId);
+
+      const { data, error } = await q;
+      if (!error && data && data.length > 0) {
+        return data.map(toMaterial);
+      } else if (client) {
+        for (const m of INITIAL_MATERIALS) {
+          try {
+            await client.from('materials').upsert({
+              id: m.id,
+              subject_id: m.subjectId,
+              name: m.name,
+              is_default: m.isDefault ?? false,
+              structure: m.structure || {},
+            });
+          } catch {}
+        }
+        return subjectId
+          ? INITIAL_MATERIALS.filter((m) => m.subjectId === subjectId)
+          : [...INITIAL_MATERIALS];
+      }
+    } catch (err) {
+      console.warn('[Supabase] getMaterials error:', err);
+    }
+    return this.fallback.getMaterials(subjectId);
+  }
+
+  async addMaterial(material: Omit<Material, 'id'>): Promise<Material> {
+    const id = `mat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const created: Material = { ...material, id };
+
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('materials').insert({
+          id,
+          subject_id: material.subjectId,
+          name: material.name,
+          is_default: material.isDefault ?? false,
+          structure: material.structure || {},
+        });
+      } catch (err) {
+        console.warn('[Supabase] addMaterial error:', err);
+      }
+    }
+
+    try {
+      await this.fallback.addMaterial(material);
+    } catch {}
+    return created;
+  }
+
+  async updateMaterial(id: string, updates: Partial<Omit<Material, 'id'>>): Promise<Material> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const payload: any = {};
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.subjectId !== undefined) payload.subject_id = updates.subjectId;
+        if (updates.isDefault !== undefined) payload.is_default = updates.isDefault;
+        if (updates.structure !== undefined) payload.structure = updates.structure;
+
+        await client.from('materials').update(payload).eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] updateMaterial error:', err);
+      }
+    }
+    return this.fallback.updateMaterial(id, updates);
+  }
+
+  async deleteMaterial(id: string): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('materials').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[Supabase] deleteMaterial error:', err);
+      }
+    }
+    return this.fallback.deleteMaterial(id);
+  }
+}
+
+// --- ユーザー & 認証 (Auth) ---
+export class SupabaseAuthRepository implements IAuthRepository {
+  private localUser: User = { ...INITIAL_USER };
+
+  async getCurrentUser(): Promise<User | null> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const { data } = await client.from('users').select('*').eq('id', this.localUser.id).single();
+        if (data) {
+          this.localUser = toUser(data);
+        }
+      } catch {}
+    }
+    return { ...this.localUser };
+  }
+
+  async loginWithGoogle(intendedRole: UserRole = 'student'): Promise<User> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        // Supabase Auth Google Provider
+        await client.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+      } catch (err) {
+        console.warn('[Supabase] Google OAuth error, falling back:', err);
+      }
+    }
+
+    if (intendedRole === 'teacher') {
+      this.localUser = { ...INITIAL_TEACHER };
+    } else {
+      this.localUser = { ...INITIAL_USER };
+    }
+    return { ...this.localUser };
+  }
+
+  async logout(): Promise<void> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.auth.signOut();
+      } catch {}
+    }
+    this.localUser = { ...INITIAL_USER };
+  }
+
+  async switchRole(role: UserRole): Promise<User> {
+    if (role === 'teacher') {
+      this.localUser = {
+        ...INITIAL_TEACHER,
+        id: 'teacher-001',
+      };
+    } else {
+      this.localUser = {
+        ...INITIAL_USER,
+        id: 'student-001',
+      };
+    }
+    return { ...this.localUser };
+  }
+
+  async updateProfile(updates: Partial<Omit<User, 'id' | 'email'>>): Promise<User> {
+    this.localUser = {
+      ...this.localUser,
+      ...updates,
+    };
+
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('users').upsert({
+          id: this.localUser.id,
+          name: this.localUser.name,
+          email: this.localUser.email,
+          role: this.localUser.role,
+          grade: this.localUser.grade || null,
+          class_room: this.localUser.classRoom || null,
+          student_number: this.localUser.studentNumber || null,
+          weekly_goal_minutes: this.localUser.weeklyGoalMinutes || 900,
+          focus_subject_id: this.localUser.focusSubjectId || 'math',
+        });
+      } catch (err) {
+        console.warn('[Supabase] updateProfile error:', err);
+      }
+    }
+
+    return { ...this.localUser };
+  }
+
+  async getStudentsList(): Promise<User[]> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const { data, error } = await client.from('users').select('*').eq('role', 'student');
+        if (!error && data && data.length > 0) {
+          return data.map(toUser);
+        }
+      } catch {}
+    }
+    return [...INITIAL_STUDENTS];
+  }
+}
+
+// --- マッピングヘルパー ---
+function toStudyRecord(row: any): StudyRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    subjectId: row.subject_id,
+    materialId: row.material_id,
+    materialName: row.material_name,
+    date: row.date,
+    durationMinutes: Number(row.duration_minutes) || 0,
+    notes: row.notes || undefined,
+    method: row.method || 'manual',
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
+function toRegularTestTask(row: any): RegularTestTask {
+  return {
+    id: row.id,
+    teacherId: row.teacher_id,
+    teacherName: row.teacher_name,
+    title: row.title,
+    subjectId: row.subject_id,
+    targetGrade: Number(row.target_grade) || 2,
+    targetClass: row.target_class || '全クラス',
+    scope: row.scope || '',
+    deadline: row.deadline || '',
+    notes: row.notes || undefined,
+    materialIds: Array.isArray(row.material_ids) ? row.material_ids : [],
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
+function toStudentTask(row: any): StudentTask {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    subjectId: row.subject_id,
+    materialId: row.material_id,
+    materialName: row.material_name,
+    regularTestTaskId: row.regular_test_task_id || undefined,
+    deadline: row.deadline,
+    bufferDays: Number(row.buffer_days) ?? 1,
+    items: Array.isArray(row.items) ? row.items : [],
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+function toMaterial(row: any): Material {
+  return {
+    id: row.id,
+    subjectId: row.subject_id,
+    name: row.name,
+    isDefault: Boolean(row.is_default),
+    structure: row.structure || undefined,
+  };
+}
+
+function toUser(row: any): User {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email || '',
+    role: row.role as UserRole,
+    grade: row.grade ? Number(row.grade) : undefined,
+    classRoom: row.class_room || undefined,
+    studentNumber: row.student_number ? Number(row.student_number) : undefined,
+    weeklyGoalMinutes: Number(row.weekly_goal_minutes) || 900,
+    focusSubjectId: row.focus_subject_id || 'math',
+  };
+}
