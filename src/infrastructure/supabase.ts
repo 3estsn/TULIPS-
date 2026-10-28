@@ -93,11 +93,28 @@ export async function testSupabaseConnection(): Promise<{
   message: string;
   error?: string;
 }> {
+  const config = getStoredSupabaseConfig();
   const client = getSupabaseClient();
-  if (!client) {
+  if (!client || !config.url || !config.anonKey) {
     return {
       connected: false,
       message: 'Supabase URL または Anon Key が未設定です。設定画面で入力してください。',
+    };
+  }
+
+  // URLの事前バリデーション（自サーバーURLを指定してしまうミスを検出）
+  const urlLower = config.url.toLowerCase();
+  if (
+    urlLower.includes('163.44.') ||
+    urlLower.includes('localhost:3001') ||
+    urlLower.includes('localhost:3000') ||
+    urlLower.startsWith('http://163.')
+  ) {
+    return {
+      connected: false,
+      message:
+        '【URLの入力間違い】指定されたURLはConoHaサーバー自身のURLです。ここにはSupabaseのダッシュボードに表示されている「Project URL (例: https://abcdefg.supabase.co)」を入力してください。',
+      error: 'Invalid Supabase Project URL: ConoHa server URL detected instead of Supabase URL',
     };
   }
 
@@ -105,10 +122,26 @@ export async function testSupabaseConnection(): Promise<{
     // subjects テーブルから1件取得を試行
     const { error } = await client.from('subjects').select('id').limit(1);
     if (error) {
+      let friendlyMessage = 'Supabaseへの接続に失敗しました。';
+      const rawError = error.message || '';
+
+      if (rawError.includes('<!doctype') || rawError.includes('<html') || rawError.includes('<head>')) {
+        friendlyMessage =
+          '【URLの入力間違い】APIの代わりにアプリ自身のHTMLが返却されました。URLにConoHaサーバーのURLが指定されています。Supabaseダッシュボード（Project Settings > API）の「https://[プロジェクトID].supabase.co」を入力してください。';
+      } else if (rawError.includes('relation "public.subjects" does not exist') || rawError.includes('does not exist')) {
+        friendlyMessage =
+          '【テーブル未作成】Supabaseへの通信は成功しましたが、テーブルがまだ作成されていません。Supabaseの「SQL Editor」でテーブル作成SQLを実行してください。';
+      } else if (rawError.includes('JWT') || rawError.includes('apikey') || rawError.includes('apiKey') || rawError.includes('Invalid API key')) {
+        friendlyMessage =
+          '【Anon Keyのエラー】APIキーが無効です。Supabaseの「Project Settings > API」にある「anon public」キーを正しくコピーしてください。';
+      } else {
+        friendlyMessage = `Supabaseエラー: ${rawError}`;
+      }
+
       return {
         connected: false,
-        message: 'Supabaseへの接続に失敗しました。URL、Anon Key、またはSQLテーブル作成を確認してください。',
-        error: error.message,
+        message: friendlyMessage,
+        error: rawError.length > 120 ? rawError.slice(0, 120) + '...' : rawError,
       };
     }
     return {
@@ -116,10 +149,16 @@ export async function testSupabaseConnection(): Promise<{
       message: 'Supabaseに接続成功！リアルタイム同期が利用可能です。',
     };
   } catch (err: any) {
+    const rawError = err?.message || String(err);
+    let friendlyMessage = '通信エラーが発生しました。ネットワーク設定をご確認ください。';
+    if (rawError.includes('<!doctype') || rawError.includes('<html')) {
+      friendlyMessage =
+        '【URLの入力間違い】WebサーバーのHTMLが返却されました。URLがConoHaサーバーのURLになっていないかご確認ください。';
+    }
     return {
       connected: false,
-      message: '通信エラーが発生しました。ネットワーク設定をご確認ください。',
-      error: err?.message || String(err),
+      message: friendlyMessage,
+      error: rawError.length > 120 ? rawError.slice(0, 120) + '...' : rawError,
     };
   }
 }

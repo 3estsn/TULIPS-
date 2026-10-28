@@ -581,13 +581,19 @@ export class SupabaseAuthRepository implements IAuthRepository {
     const client = getSupabaseClient();
     if (client) {
       try {
-        // Supabase Auth Google Provider
-        await client.auth.signInWithOAuth({
+        // Supabase Auth Google Provider (ブラウザ直遷移でJSONエラー画面が出るのを防止)
+        const { data, error } = await client.auth.signInWithOAuth({
           provider: 'google',
           options: {
             redirectTo: window.location.origin,
+            skipBrowserRedirect: true,
           },
         });
+        if (error) {
+          console.warn('[Supabase] Google OAuth provider not enabled:', error.message);
+        } else if (data?.url) {
+          window.location.href = data.url;
+        }
       } catch (err) {
         console.warn('[Supabase] Google OAuth error, falling back:', err);
       }

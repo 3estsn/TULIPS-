@@ -46,6 +46,7 @@ export const SettingsView: React.FC = () => {
     accentColor,
     accentForeground,
     setAccentColor,
+    refreshData,
   } = useApp();
 
   const [name, setName] = useState<string>(currentUser?.name || '');
@@ -58,6 +59,7 @@ export const SettingsView: React.FC = () => {
   const [focusSubjectId, setFocusSubjectId] = useState<string>(currentUser?.focusSubjectId || 'math');
   const [customHex, setCustomHex] = useState<string>(accentColor);
   const [savedMessage, setSavedMessage] = useState<string>('');
+  const [isSyncingData, setIsSyncingData] = useState<boolean>(false);
   const initialSupabase = getStoredSupabaseConfig();
   const [supabaseUrl, setSupabaseUrl] = useState<string>(initialSupabase.url);
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(initialSupabase.anonKey);
@@ -65,6 +67,20 @@ export const SettingsView: React.FC = () => {
   const [supabaseStatusDetail, setSupabaseStatusDetail] = useState<string>('');
   const [isSqlOpen, setIsSqlOpen] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
+
+  const handleSyncData = async () => {
+    setIsSyncingData(true);
+    try {
+      await refreshData();
+      setSavedMessage('クラウド（Supabase）と最新データを同期しました。');
+      setTimeout(() => setSavedMessage(''), 3000);
+    } catch (err: any) {
+      setSavedMessage('データ再同期に失敗しました: ' + (err?.message || '通信エラー'));
+      setTimeout(() => setSavedMessage(''), 4000);
+    } finally {
+      setIsSyncingData(false);
+    }
+  };
 
   const runSupabaseTest = async (urlToTest?: string, keyToTest?: string) => {
     if (urlToTest !== undefined && keyToTest !== undefined) {
@@ -532,28 +548,33 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
           </h2>
         </div>
 
-        {/* Google アカウント状態（Firebase Auth 連携） */}
+        {/* 同期・アカウント状態 */}
         <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-full bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center font-bold text-xs text-zinc-700 dark:text-zinc-200">
-              G
+              {currentUser?.role === 'teacher' ? '教' : '生'}
             </div>
             <div>
-              <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                Google アカウント (Firebase Auth)
+              <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
+                <span>{currentUser?.name || 'ユーザー'}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 font-normal">
+                  {currentUser?.role === 'teacher' ? '先生' : `${currentUser?.grade || 2}年${currentUser?.classRoom || ''}`}
+                </span>
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                {currentUser?.email || '未連携'}
+                {supabaseStatus === 'connected' ? 'Supabase クラウド同期中' : 'ローカル保存モード'}
               </div>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={() => loginWithGoogle(currentUser?.role || 'student')}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+            onClick={handleSyncData}
+            disabled={isSyncingData}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
           >
-            アカウント再同期
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingData ? 'animate-spin' : ''}`} />
+            <span>{isSyncingData ? '同期中...' : 'データを再同期'}</span>
           </button>
         </div>
 
