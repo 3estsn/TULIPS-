@@ -237,73 +237,27 @@ export const INITIAL_MATERIALS: Material[] = [
 
 export const INITIAL_USER: User = {
   id: 'student-001',
-  name: '佐藤 翼',
-  email: 'sato.tsubasa@tulips-high.ed.jp',
+  name: '生徒',
+  email: '',
   role: 'student',
   grade: 2,
   classRoom: '1組',
-  studentNumber: 14,
-  isGoogleAccount: true,
-  weeklyGoalMinutes: 900, // 15時間
-  focusSubjectId: 'math', // 重視する科目: 数学
+  studentNumber: 1,
+  isGoogleAccount: false,
+  weeklyGoalMinutes: 900,
+  focusSubjectId: 'math',
 };
 
-export const INITIAL_STUDENTS: User[] = [
-  INITIAL_USER,
-  {
-    id: 'student-002',
-    name: '田中 陽翔',
-    email: 'tanaka.haruto@tulips-high.ed.jp',
-    role: 'student',
-    grade: 2,
-    classRoom: '1組',
-    studentNumber: 15,
-  },
-  {
-    id: 'student-003',
-    name: '伊藤 葵',
-    email: 'ito.aoi@tulips-high.ed.jp',
-    role: 'student',
-    grade: 2,
-    classRoom: '1組',
-    studentNumber: 3,
-  },
-  {
-    id: 'student-004',
-    name: '渡辺 蓮',
-    email: 'watanabe.ren@tulips-high.ed.jp',
-    role: 'student',
-    grade: 2,
-    classRoom: '1組',
-    studentNumber: 28,
-  },
-  {
-    id: 'student-005',
-    name: '小林 結衣',
-    email: 'kobayashi.yui@tulips-high.ed.jp',
-    role: 'student',
-    grade: 2,
-    classRoom: '1組',
-    studentNumber: 9,
-  },
-  {
-    id: 'student-006',
-    name: '高橋 湊',
-    email: 'takahashi.so@tulips-high.ed.jp',
-    role: 'student',
-    grade: 2,
-    classRoom: '2組',
-    studentNumber: 12,
-  },
-];
+// サンプル生徒（例として入っていた生徒アカウント）は完全に削除し、実在生徒のみ表示
+export const INITIAL_STUDENTS: User[] = [];
 
 export const INITIAL_TEACHER: User = {
   id: 'teacher-001',
-  name: '山田 健一 教諭',
-  email: 'yamada.kenichi@tulips-high.ed.jp',
+  name: '担当教諭',
+  email: '',
   role: 'teacher',
-  classRoom: '2年学年主任・数学科',
-  isGoogleAccount: true,
+  classRoom: '数学科・学年主任',
+  isGoogleAccount: false,
 };
 
 export const INITIAL_TASKS: RegularTestTask[] = [

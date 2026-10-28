@@ -581,7 +581,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                  Google アカウント (Firebase Auth)
+                  {isTeacher ? '先生用 Google アカウント (Firebase Auth)' : '生徒用 Google アカウント (Firebase Auth)'}
                 </span>
                 {currentUser?.isGoogleAccount ? (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
@@ -607,7 +607,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSigningInGoogle ? 'animate-spin' : ''}`} />
-              <span>アカウント再同期</span>
+              <span>{currentUser?.isGoogleAccount ? 'アカウント再同期' : (isTeacher ? '先生用Google連携' : 'Google連携')}</span>
             </button>
           </div>
         </div>

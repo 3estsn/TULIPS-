@@ -74,33 +74,29 @@ function loadDatabase(): ConoHaDatabase {
     }
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
-      return JSON.parse(raw) as ConoHaDatabase;
+      const loaded = JSON.parse(raw) as ConoHaDatabase;
+      // サンプル例として入っていた生徒（student-002〜006）およびサンプル氏名を完全削除
+      const DEMO_STUDENT_IDS = new Set(['student-002', 'student-003', 'student-004', 'student-005', 'student-006']);
+      const DEMO_STUDENT_NAMES = new Set(['田中 陽翔', '伊藤 葵', '渡辺 蓮', '小林 結衣', '高橋 湊']);
+      loaded.users = (loaded.users || []).filter(
+        (u) => !DEMO_STUDENT_IDS.has(u.id) && !DEMO_STUDENT_NAMES.has(u.name)
+      );
+      // サンプル初期学習記録 (rec-init-1) も削除
+      loaded.records = (loaded.records || []).filter((r) => r.id !== 'rec-init-1');
+      return loaded;
     }
   } catch (err) {
     console.error('[ConoHa Server] Failed to read database file, initializing defaults:', err);
   }
 
-  // 初期シードデータ
+  // 初期シードデータ（サンプル生徒は含めず、実在する登録生徒のみ管理）
   const initialDb: ConoHaDatabase = {
-    users: [INITIAL_TEACHER, ...INITIAL_STUDENTS],
+    users: [INITIAL_TEACHER],
     subjects: INITIAL_SUBJECTS,
     materials: INITIAL_MATERIALS,
     tasks: INITIAL_TASKS,
     studentTasks: INITIAL_STUDENT_TASKS,
-    records: [
-      {
-        id: 'rec-init-1',
-        userId: 'student-001',
-        subjectId: 'math',
-        materialId: 'm-math-2',
-        materialName: 'チャート式 基礎からの数学I+A（青チャート）',
-        date: new Date().toISOString().split('T')[0],
-        durationMinutes: 60,
-        notes: '例題21〜23の復習と演習',
-        method: 'manual',
-        createdAt: new Date().toISOString(),
-      },
-    ],
+    records: [],
   };
 
   try {
@@ -395,7 +391,53 @@ app.get('/api/auth/me', (req: Request, res: Response) => {
 });
 
 app.get('/api/students', (_req: Request, res: Response) => {
-  const students = db.users.filter((u) => u.role === 'student');
+  const DEMO_STUDENT_IDS = new Set(['student-002', 'student-003', 'student-004', 'student-005', 'student-006']);
+  const DEMO_STUDENT_NAMES = new Set(['田中 陽翔', '伊藤 葵', '渡辺 蓮', '小林 結衣', '高橋 湊']);
+
+  // デモ用サンプル生徒を確実に除外
+  let students = db.users.filter((u) => {
+    if (u.role !== 'student') return false;
+    if (DEMO_STUDENT_IDS.has(u.id)) return false;
+    if (DEMO_STUDENT_NAMES.has(u.name)) return false;
+    return true;
+  });
+
+  // もしGoogle連携済みの生徒アカウントが存在し、未連携のstudent-001が残っている場合、
+  // student-001の学習記録をGoogle生徒アカウントへ統合
+  const googleStudent = students.find(
+    (u) => u.isGoogleAccount || (u.email && u.email.includes('@') && !u.email.endsWith('@tulips-high.ed.jp'))
+  );
+  if (googleStudent && students.some((u) => u.id === 'student-001')) {
+    let touched = false;
+    for (const r of db.records) {
+      if (r.userId === 'student-001') {
+        r.userId = googleStudent.id;
+        touched = true;
+      }
+    }
+    for (const st of db.studentTasks) {
+      if (st.userId === 'student-001') {
+        st.userId = googleStudent.id;
+        touched = true;
+      }
+    }
+    db.users = db.users.filter((u) => u.id !== 'student-001');
+    students = students.filter((u) => u.id !== 'student-001');
+    if (touched) {
+      saveDatabase(db);
+    }
+  }
+
+  // もし学習記録が0件かつ名前が初期「生徒」かつメール未設定の完全未記入student-001がある場合、
+  // 先生画面に余計なダミー行として表示されないよう除外
+  const hasRecords = (uid: string) => db.records.some((r) => r.userId === uid);
+  students = students.filter((s) => {
+    if (s.id === 'student-001' && s.name === '生徒' && !s.email && !hasRecords('student-001')) {
+      return false;
+    }
+    return true;
+  });
+
   res.json(students);
 });
 
@@ -410,7 +452,7 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
   } else {
     const newUser: User = {
       id: targetId,
-      name: updates.name || '生徒',
+      name: updates.name || (updates.role === 'teacher' ? '担当教諭' : '生徒'),
       email: updates.email || '',
       role: updates.role || 'student',
       grade: updates.grade,
@@ -418,6 +460,7 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
       studentNumber: updates.studentNumber,
       weeklyGoalMinutes: updates.weeklyGoalMinutes || 900,
       focusSubjectId: updates.focusSubjectId || 'math',
+      isGoogleAccount: Boolean(updates.isGoogleAccount),
       ...updates,
     };
     db.users.push(newUser);
@@ -426,21 +469,43 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
   }
 });
 
-// ユーザー・名簿同期 (Google アカウント連携や生徒名簿更新)
+// ユーザー・名簿同期 (Google アカウント連携や生徒・教員名簿更新)
 app.post('/api/users/sync', (req: Request, res: Response) => {
-  const user: User = req.body;
+  const { oldId, ...user } = req.body;
   if (!user || !user.id) {
     res.status(400).json({ error: 'User id is required' });
     return;
   }
+
+  // Google アカウント連携に伴う旧ID（student-001やteacher-001）からの学習記録・計画タスク移行
+  if (oldId && oldId !== user.id) {
+    let migratedCount = 0;
+    for (const r of db.records) {
+      if (r.userId === oldId) {
+        r.userId = user.id;
+        migratedCount++;
+      }
+    }
+    for (const st of db.studentTasks) {
+      if (st.userId === oldId) {
+        st.userId = user.id;
+      }
+    }
+    // 旧ダミーIDを名簿から削除
+    db.users = db.users.filter((u) => u.id !== oldId);
+    if (migratedCount > 0) {
+      console.log(`[ConoHa Server] Migrated ${migratedCount} study records from ${oldId} to ${user.id}`);
+    }
+  }
+
   const idx = db.users.findIndex((u) => u.id === user.id);
   if (idx !== -1) {
     db.users[idx] = { ...db.users[idx], ...user };
   } else {
-    db.users.push(user);
+    db.users.push(user as User);
   }
   saveDatabase(db);
-  res.json(db.users[idx !== -1 ? idx : db.users.length - 1]);
+  res.json(db.users.find((u) => u.id === user.id));
 });
 
 app.post('/api/students', (req: Request, res: Response) => {

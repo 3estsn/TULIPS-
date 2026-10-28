@@ -585,22 +585,30 @@ export class SupabaseAuthRepository implements IAuthRepository {
       try {
         auth.onAuthStateChanged((fbUser) => {
           if (fbUser) {
-            this.localUser = {
-              ...this.localUser,
-              id: fbUser.uid,
-              name: fbUser.displayName || this.localUser.name,
-              email: fbUser.email || this.localUser.email,
-              isGoogleAccount: true,
-            };
-            try {
-              localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
-            } catch {}
-            // ConoHa サーバーにも同期
-            fetch('/api/users/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(this.localUser),
-            }).catch(() => {});
+            const oldId = this.localUser.id;
+            const isGoogleLinked = this.localUser.isGoogleAccount && this.localUser.email === fbUser.email;
+            if (!isGoogleLinked || this.localUser.id !== fbUser.uid) {
+              this.localUser = {
+                ...this.localUser,
+                id: fbUser.uid,
+                name: this.localUser.name && this.localUser.name !== '生徒' && this.localUser.name !== '担当教諭'
+                  ? this.localUser.name
+                  : (fbUser.displayName || (this.localUser.role === 'teacher' ? '担当教諭' : '生徒')),
+                email: fbUser.email || this.localUser.email,
+                isGoogleAccount: true,
+              };
+              try {
+                localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+                const storageKey = this.localUser.role === 'teacher' ? 'tulips_teacher_user' : 'tulips_student_user';
+                localStorage.setItem(storageKey, JSON.stringify(this.localUser));
+              } catch {}
+              // ConoHa サーバーにも同期
+              fetch('/api/users/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldId, ...this.localUser }),
+              }).catch(() => {});
+            }
           }
         });
       } catch (err) {
@@ -633,16 +641,20 @@ export class SupabaseAuthRepository implements IAuthRepository {
     try {
       const result = await signInWithPopup(auth, googleAuthProvider);
       const fbUser = result.user;
+      const oldId = this.localUser.id;
+      const isTeacher = intendedRole === 'teacher';
 
       const updatedUser: User = {
         ...this.localUser,
         id: fbUser.uid,
-        name: fbUser.displayName || (intendedRole === 'teacher' ? '教員' : '生徒'),
+        name: fbUser.displayName || (isTeacher ? '担当教諭' : '生徒'),
         email: fbUser.email || '',
         role: intendedRole,
-        grade: intendedRole === 'student' ? (this.localUser.grade || 2) : undefined,
-        classRoom: intendedRole === 'student' ? (this.localUser.classRoom || '1組') : '2年学年主任・数学科',
-        studentNumber: intendedRole === 'student' ? (this.localUser.studentNumber || 14) : undefined,
+        grade: isTeacher ? undefined : (this.localUser.grade || 2),
+        classRoom: isTeacher
+          ? (this.localUser.classRoom && this.localUser.classRoom !== '1組' ? this.localUser.classRoom : '数学科・学年主任')
+          : (this.localUser.classRoom || '1組'),
+        studentNumber: isTeacher ? undefined : (this.localUser.studentNumber || 1),
         weeklyGoalMinutes: this.localUser.weeklyGoalMinutes || 900,
         focusSubjectId: this.localUser.focusSubjectId || 'math',
         isGoogleAccount: true,
@@ -651,21 +663,30 @@ export class SupabaseAuthRepository implements IAuthRepository {
       this.localUser = updatedUser;
       try {
         localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+        const storageKey = isTeacher ? 'tulips_teacher_user' : 'tulips_student_user';
+        localStorage.setItem(storageKey, JSON.stringify(this.localUser));
       } catch {}
 
-      // ConoHa サーバー API にも即座に同期（別端末・先生ダッシュボードへ名簿反映）
+      // ConoHa サーバー API に旧IDからの学習記録移行も含めて即座に同期
       try {
         await fetch('/api/users/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedUser),
+          body: JSON.stringify({ oldId, ...updatedUser }),
         });
-      } catch {}
+      } catch (err) {
+        console.warn('[ConoHa API] users/sync error:', err);
+      }
 
-      // Supabase の users テーブルにも Google アカウントの情報を同期保存
+      // Supabase の users テーブルにも Google アカウントの情報を同期保存 & 記録移行
       const client = getSupabaseClient();
       if (client) {
         try {
+          if (oldId && oldId !== updatedUser.id) {
+            await client.from('study_records').update({ user_id: updatedUser.id }).eq('user_id', oldId);
+            await client.from('student_tasks').update({ user_id: updatedUser.id }).eq('user_id', oldId);
+            await client.from('users').delete().eq('id', oldId);
+          }
           await client.from('users').upsert({
             id: updatedUser.id,
             name: updatedUser.name,
@@ -704,13 +725,33 @@ export class SupabaseAuthRepository implements IAuthRepository {
     } catch (e) {
       console.warn('[Firebase] SignOut error:', e);
     }
-    this.localUser = { ...INITIAL_USER };
+    const isTeacher = this.localUser.role === 'teacher';
+    this.localUser = isTeacher ? { ...INITIAL_TEACHER } : { ...INITIAL_USER };
     try {
       localStorage.removeItem('tulips_current_user');
+      localStorage.removeItem(isTeacher ? 'tulips_teacher_user' : 'tulips_student_user');
     } catch {}
   }
 
   async switchRole(role: UserRole): Promise<User> {
+    // 役割切り替え時に各ロールの直近Google連携状態を復元（連携情報の消滅を防止）
+    const storageKey = role === 'teacher' ? 'tulips_teacher_user' : 'tulips_student_user';
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          this.localUser = {
+            ...(role === 'teacher' ? INITIAL_TEACHER : INITIAL_USER),
+            ...parsed,
+            role,
+          };
+          localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+          return { ...this.localUser };
+        }
+      }
+    } catch {}
+
     if (role === 'teacher') {
       this.localUser = {
         ...INITIAL_TEACHER,
@@ -724,17 +765,20 @@ export class SupabaseAuthRepository implements IAuthRepository {
     }
     try {
       localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+      localStorage.setItem(storageKey, JSON.stringify(this.localUser));
     } catch {}
     return { ...this.localUser };
   }
 
-  async updateProfile(updates: Partial<Omit<User, 'id' | 'email'>>): Promise<User> {
+  async updateProfile(updates: Partial<Omit<User, 'id'>>): Promise<User> {
     this.localUser = {
       ...this.localUser,
       ...updates,
     };
     try {
       localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+      const storageKey = this.localUser.role === 'teacher' ? 'tulips_teacher_user' : 'tulips_student_user';
+      localStorage.setItem(storageKey, JSON.stringify(this.localUser));
     } catch {}
 
     // ConoHa サーバー API にも同期（生徒名簿・メールアドレスを別端末へ共有）
@@ -769,12 +813,17 @@ export class SupabaseAuthRepository implements IAuthRepository {
   }
 
   async getStudentsList(): Promise<User[]> {
+    const DEMO_IDS = new Set(['student-002', 'student-003', 'student-004', 'student-005', 'student-006']);
+    const DEMO_NAMES = new Set(['田中 陽翔', '伊藤 葵', '渡辺 蓮', '小林 結衣', '高橋 湊']);
+    const isRealStudent = (u: User) => !DEMO_IDS.has(u.id) && !DEMO_NAMES.has(u.name);
+
     const client = getSupabaseClient();
     if (client) {
       try {
         const { data, error } = await client.from('users').select('*').eq('role', 'student');
         if (!error && data && data.length > 0) {
-          return data.map(toUser);
+          const list = data.map(toUser).filter(isRealStudent);
+          if (list.length > 0) return list;
         }
       } catch {}
     }
@@ -782,10 +831,10 @@ export class SupabaseAuthRepository implements IAuthRepository {
     try {
       const serverStudents = await this.conohaAuth.getStudentsList();
       if (serverStudents && serverStudents.length > 0) {
-        return serverStudents;
+        return serverStudents.filter(isRealStudent);
       }
     } catch {}
-    return [...INITIAL_STUDENTS];
+    return [];
   }
 }
 
