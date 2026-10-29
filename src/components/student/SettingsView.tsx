@@ -32,6 +32,7 @@ import {
   saveSupabaseConfig,
   testSupabaseConnection,
 } from '../../infrastructure/supabase.ts';
+import { AccountCreateModal } from '../auth/AccountCreateModal.tsx';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -62,6 +63,7 @@ export const SettingsView: React.FC = () => {
   const [isSyncingData, setIsSyncingData] = useState<boolean>(false);
   const [isSigningInGoogle, setIsSigningInGoogle] = useState<boolean>(false);
   const [googleAuthError, setGoogleAuthError] = useState<string>('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const initialSupabase = getStoredSupabaseConfig();
   const [supabaseUrl, setSupabaseUrl] = useState<string>(initialSupabase.url);
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(initialSupabase.anonKey);
@@ -650,35 +652,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
 
             <button
               type="button"
-              onClick={async () => {
-                if (!window.confirm('新しいアカウントを作成しますか？（現在のローカル設定をクリアして新規アカウントを立ち上げます）')) return;
-                try {
-                  await logout();
-                  const newId = `student-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-                  const freshUser = {
-                    id: newId,
-                    name: '新規生徒',
-                    email: '',
-                    role: currentUser?.role || 'student',
-                    grade: 2,
-                    classRoom: '1組',
-                    studentNumber: 1,
-                    weeklyGoalMinutes: 900,
-                    focusSubjectId: 'math',
-                    isGoogleAccount: false,
-                  };
-                  localStorage.setItem('tulips_current_user', JSON.stringify(freshUser));
-                  window.location.reload();
-                } catch (e) {
-                  setSavedMessage('新規アカウント作成に失敗しました。');
-                }
-              }}
+              onClick={() => setIsCreateModalOpen(true)}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-700 dark:text-emerald-200 hover:bg-emerald-100 flex items-center space-x-1.5 cursor-pointer transition-colors shadow-2xs"
             >
               <span>+ アカウント新規作成</span>
             </button>
           </div>
         </div>
+
+        <AccountCreateModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={() => {}}
+        />
 
         {googleAuthError && (
           <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start space-x-2">

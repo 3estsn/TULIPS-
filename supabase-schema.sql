@@ -1,8 +1,8 @@
 -- ==============================================================
--- TULIPS 高校向け学習記録システム Supabase データベース構築 & リアルタイム同期設定
+-- TULIPS 高校向け学習記録システム - 新規 Supabase スキーマ定義
 -- 
 -- 【使い方】
--- 1. Supabase のダッシュボード (https://supabase.com/dashboard) を開きます。
+-- 1. Supabase ダッシュボード (https://supabase.com/dashboard) を開きます。
 -- 2. プロジェクトを選択し、左メニューの「SQL Editor」を開きます。
 -- 3. 「New query」を押し、このファイルの内容をすべて貼り付けて「Run」を実行してください。
 -- ==============================================================
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.regular_test_tasks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. 生徒学習計画タスクテーブル (参考書構造から作成: student_tasks)
+-- 3. 生徒学習計画タスクテーブル (student_tasks)
 CREATE TABLE IF NOT EXISTS public.student_tasks (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -84,10 +84,8 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- ==============================================================
--- 【重要】Supabase Realtime (リアルタイム同期) の有効化
+-- Supabase Realtime (リアルタイム同期) の有効化
 -- ==============================================================
--- Supabase のリアルタイムパブリケーションに対象テーブルを追加します。
--- 重複追加エラーを防ぐため安全なブロックで実行します。
 DO $$
 BEGIN
   BEGIN
@@ -116,10 +114,7 @@ BEGIN
   END;
 END $$;
 
--- ==============================================================
--- テーブルのRow Level Security (RLS) 設定
--- 開発・テスト用に全権限許可（必要に応じて運用ポリシーに変更可能）
--- ==============================================================
+-- Row Level Security (RLS) 設定 & 全公開ポリシー
 ALTER TABLE public.study_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.regular_test_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_tasks ENABLE ROW LEVEL SECURITY;
@@ -128,22 +123,24 @@ ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public all access on study_records" ON public.study_records;
-DROP POLICY IF EXISTS "Allow public all access on regular_test_tasks" ON public.regular_test_tasks;
-DROP POLICY IF EXISTS "Allow public all access on student_tasks" ON public.student_tasks;
-DROP POLICY IF EXISTS "Allow public all access on materials" ON public.materials;
-DROP POLICY IF EXISTS "Allow public all access on subjects" ON public.subjects;
-DROP POLICY IF EXISTS "Allow public all access on users" ON public.users;
-
 CREATE POLICY "Allow public all access on study_records" ON public.study_records FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all access on regular_test_tasks" ON public.regular_test_tasks;
 CREATE POLICY "Allow public all access on regular_test_tasks" ON public.regular_test_tasks FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all access on student_tasks" ON public.student_tasks;
 CREATE POLICY "Allow public all access on student_tasks" ON public.student_tasks FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all access on materials" ON public.materials;
 CREATE POLICY "Allow public all access on materials" ON public.materials FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all access on subjects" ON public.subjects;
 CREATE POLICY "Allow public all access on subjects" ON public.subjects FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all access on users" ON public.users;
 CREATE POLICY "Allow public all access on users" ON public.users FOR ALL USING (true) WITH CHECK (true);
 
--- ==============================================================
--- 初期シードデータの投入（教科マスター）
--- ==============================================================
+-- 初期教科マスターデータ挿入
 INSERT INTO public.subjects (id, name, category, color) VALUES
 ('japanese', '国語', 'japanese', '#ef4444'),
 ('math', '数学', 'math', '#3b82f6'),

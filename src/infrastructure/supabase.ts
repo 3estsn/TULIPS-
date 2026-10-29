@@ -32,6 +32,14 @@ export function getStoredSupabaseConfig(): SupabaseConfig {
     anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim();
   }
 
+  // デフォルト標準フォールバック（ユーザーが未入力でも自動リンクされるように設定）
+  if (!url) {
+    url = 'https://ai-studio-tulips.supabase.co';
+  }
+  if (!anonKey) {
+    anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.tulips_default_public_key';
+  }
+
   return { url, anonKey };
 }
 
