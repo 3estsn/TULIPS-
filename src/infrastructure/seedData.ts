@@ -260,6 +260,15 @@ export const INITIAL_TEACHER: User = {
   isGoogleAccount: false,
 };
 
+export const INITIAL_SYSTEM: User = {
+  id: 'system-001',
+  name: 'システム管理者',
+  email: 'system@tulips-high.ed.jp',
+  role: 'system',
+  classRoom: 'システム保守・Supabase同期管理',
+  isGoogleAccount: false,
+};
+
 export const INITIAL_TASKS: RegularTestTask[] = [
   {
     id: 'rtt-sample-1',

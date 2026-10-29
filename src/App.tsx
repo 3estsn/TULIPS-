@@ -16,15 +16,23 @@ import { SettingsView } from './components/student/SettingsView.tsx';
 import { TeacherDashboardView } from './components/teacher/TeacherDashboardView.tsx';
 import { TeacherTasksView } from './components/teacher/TeacherTasksView.tsx';
 import { TeacherMaterialStructureEditor } from './components/teacher/TeacherMaterialStructureEditor.tsx';
+import { LoginModal } from './components/auth/LoginModal.tsx';
+import { SystemPortalView } from './components/system/SystemPortalView.tsx';
 
 const AppContent: React.FC = () => {
   const { activeTab, currentUser } = useApp();
+
+  if (!currentUser) {
+    return <LoginModal />;
+  }
+
   const isTeacher = currentUser?.role === 'teacher';
+  const isSystem = currentUser?.role === 'system';
 
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <HomeView />;
+        return isSystem ? <SystemPortalView /> : <HomeView />;
       case 'record':
         return <RecordView />;
       case 'stats':
@@ -39,7 +47,10 @@ const AppContent: React.FC = () => {
         return <TeacherTasksView />;
       case 'teacher_materials':
         return <TeacherMaterialStructureEditor />;
+      case 'system_portal':
+        return <SystemPortalView />;
       default:
+        if (isSystem) return <SystemPortalView />;
         return isTeacher ? <TeacherDashboardView /> : <HomeView />;
     }
   };

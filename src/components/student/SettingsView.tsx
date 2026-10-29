@@ -176,56 +176,94 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* 画面モード切替（生徒画面 / 先生画面） */}
+      {/* 画面モード切替（生徒画面 / 先生画面 / システム画面） */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
         <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
           <GraduationCap className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
           <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-            画面モードの切替（生徒 / 教員）
+            画面モードの切替（生徒 / 教員 / システム）
           </h2>
         </div>
 
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          高校現場での運用に合わせて、生徒画面と先生画面をいつでも切り替えて操作・確認できます。
+          用途に合わせて、生徒画面、先生画面、システム管理画面をいつでも切り替えて操作できます。
         </p>
 
-        <div className="grid grid-cols-2 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           <button
             type="button"
             onClick={() => switchUserRole('student')}
-            className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
-              !isTeacher
+            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+              currentUser?.role === 'student'
                 ? 'border-zinc-900 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-100'
                 : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">生徒画面</span>
-              {!isTeacher && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+              {currentUser?.role === 'student' && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              学習時間記録、タイマー計測、個人統計の確認
+              学習時間記録、タイマー計測
             </p>
           </button>
 
           <button
             type="button"
             onClick={() => switchUserRole('teacher')}
-            className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
-              isTeacher
+            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+              currentUser?.role === 'teacher'
                 ? 'border-zinc-900 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-100'
                 : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">先生画面</span>
-              {isTeacher && <Check className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+              {currentUser?.role === 'teacher' && <Check className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              クラス生徒の学習統計確認、定期テスト課題範囲の設定
+              生徒の学習統計、定期テスト配信
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => switchUserRole('system')}
+            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+              currentUser?.role === 'system'
+                ? 'border-zinc-900 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-100'
+                : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">システム</span>
+              {currentUser?.role === 'system' && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              Supabase同期テスト、保守管理
             </p>
           </button>
         </div>
+      </div>
+
+      {/* ログアウト管理 */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+            セッションログアウト
+          </h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            ログアウトすると、ログイン画面が表示されます。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={logout}
+          className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200 text-xs font-bold hover:bg-rose-100 cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs shrink-0 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>ログアウトする</span>
+        </button>
       </div>
 
       {/* クラウドデータベース & リアルタイム同期（Supabase） */}
