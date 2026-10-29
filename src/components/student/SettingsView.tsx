@@ -599,7 +599,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 self-end sm:self-auto">
+          <div className="flex items-center space-x-2 self-end sm:self-auto flex-wrap gap-2">
             <button
               type="button"
               onClick={handleGoogleSignIn}
@@ -608,6 +608,36 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSigningInGoogle ? 'animate-spin' : ''}`} />
               <span>{currentUser?.isGoogleAccount ? 'アカウント再同期' : (isTeacher ? '先生用Google連携' : 'Google連携')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm('新しいアカウントを作成しますか？（現在のローカル設定をクリアして新規アカウントを立ち上げます）')) return;
+                try {
+                  await logout();
+                  const newId = `student-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+                  const freshUser = {
+                    id: newId,
+                    name: '新規生徒',
+                    email: '',
+                    role: currentUser?.role || 'student',
+                    grade: 2,
+                    classRoom: '1組',
+                    studentNumber: 1,
+                    weeklyGoalMinutes: 900,
+                    focusSubjectId: 'math',
+                    isGoogleAccount: false,
+                  };
+                  localStorage.setItem('tulips_current_user', JSON.stringify(freshUser));
+                  window.location.reload();
+                } catch (e) {
+                  setSavedMessage('新規アカウント作成に失敗しました。');
+                }
+              }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-700 dark:text-emerald-200 hover:bg-emerald-100 flex items-center space-x-1.5 cursor-pointer transition-colors shadow-2xs"
+            >
+              <span>+ アカウント新規作成</span>
             </button>
           </div>
         </div>
@@ -703,7 +733,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
                 <input
                   type="number"
                   min="1"
-                  max="80"
+                  max="86"
                   value={weeklyGoalHours}
                   onChange={(e) => setWeeklyGoalHours(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-hidden"
