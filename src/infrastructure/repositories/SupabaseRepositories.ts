@@ -629,12 +629,20 @@ export class SupabaseAuthRepository implements IAuthRepository {
     }
     if (!this.localUser) return null;
 
+    const currentRole = this.localUser.role;
+    const currentId = this.localUser.id;
+
     const client = getSupabaseClient();
     if (client) {
       try {
-        const { data } = await client.from('users').select('*').eq('id', this.localUser.id).single();
+        const { data } = await client.from('users').select('*').eq('id', currentId).single();
         if (data) {
-          this.localUser = { ...this.localUser, ...toUser(data) };
+          const remoteUser = toUser(data);
+          this.localUser = {
+            ...this.localUser,
+            ...remoteUser,
+            role: currentRole, // ローカルのロール切替を絶対優先
+          };
           return { ...this.localUser };
         }
       } catch {}
@@ -642,7 +650,11 @@ export class SupabaseAuthRepository implements IAuthRepository {
     try {
       const serverUser = await this.conohaAuth.getCurrentUser();
       if (serverUser) {
-        this.localUser = { ...this.localUser, ...serverUser };
+        this.localUser = {
+          ...this.localUser,
+          ...serverUser,
+          role: currentRole,
+        };
       }
     } catch {}
     return { ...this.localUser };
