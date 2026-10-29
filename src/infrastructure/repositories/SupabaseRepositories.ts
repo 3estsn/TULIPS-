@@ -644,7 +644,36 @@ export class SupabaseAuthRepository implements IAuthRepository {
       const oldId = this.localUser.id;
       const isTeacher = intendedRole === 'teacher';
 
-      const updatedUser: User = {
+      // サーバーまたはSupabaseからこのUIDの既存ユーザーデータがあるか探索（別Googleアカウントへの切り替え対応）
+      let existingUser: User | null = null;
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          const { data } = await client.from('users').select('*').eq('id', fbUser.uid).single();
+          if (data) {
+            existingUser = toUser(data);
+          }
+        } catch {}
+      }
+      if (!existingUser) {
+        try {
+          const res = await fetch(`/api/auth/me?userId=${encodeURIComponent(fbUser.uid)}`);
+          if (res.ok) {
+            const u = await res.json();
+            if (u && u.id === fbUser.uid) {
+              existingUser = u;
+            }
+          }
+        } catch {}
+      }
+
+      const updatedUser: User = existingUser ? {
+        ...existingUser,
+        role: intendedRole,
+        isGoogleAccount: true,
+        email: fbUser.email || existingUser.email,
+        name: fbUser.displayName || existingUser.name,
+      } : {
         ...this.localUser,
         id: fbUser.uid,
         name: fbUser.displayName || (isTeacher ? '担当教諭' : '生徒'),
@@ -679,7 +708,6 @@ export class SupabaseAuthRepository implements IAuthRepository {
       }
 
       // Supabase の users テーブルにも Google アカウントの情報を同期保存 & 記録移行
-      const client = getSupabaseClient();
       if (client) {
         try {
           if (oldId && oldId !== updatedUser.id) {
@@ -755,12 +783,14 @@ export class SupabaseAuthRepository implements IAuthRepository {
     if (role === 'teacher') {
       this.localUser = {
         ...INITIAL_TEACHER,
-        id: 'teacher-001',
+        id: this.localUser?.role === 'teacher' && this.localUser.id !== 'teacher-001' ? this.localUser.id : 'teacher-001',
+        role: 'teacher',
       };
     } else {
       this.localUser = {
         ...INITIAL_USER,
-        id: 'student-001',
+        id: this.localUser?.role === 'student' && this.localUser.id !== 'student-001' ? this.localUser.id : 'student-001',
+        role: 'student',
       };
     }
     try {

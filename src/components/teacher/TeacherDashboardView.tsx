@@ -193,7 +193,7 @@ export const TeacherDashboardView: React.FC = () => {
             className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 shadow-2xs flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 transition-colors shrink-0"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-blue-400 ${isTeacherLoggingIn ? 'animate-spin' : ''}`} />
-            <span>{currentUser?.isGoogleAccount ? '先生アカウント再同期' : '先生用Googleアカウント連携'}</span>
+            <span>{currentUser?.isGoogleAccount ? 'Googleアカウント切替' : 'Googleアカウントに接続'}</span>
           </button>
         </div>
 

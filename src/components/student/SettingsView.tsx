@@ -607,7 +607,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.student_tasks;`}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSigningInGoogle ? 'animate-spin' : ''}`} />
-              <span>{currentUser?.isGoogleAccount ? 'アカウント再同期' : (isTeacher ? '先生用Google連携' : 'Google連携')}</span>
+              <span>{currentUser?.isGoogleAccount ? 'Googleアカウント切替' : 'Googleアカウントに接続'}</span>
             </button>
 
             <button
