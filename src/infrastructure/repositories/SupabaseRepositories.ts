@@ -30,6 +30,7 @@ import {
   INITIAL_SUBJECTS,
   INITIAL_TASKS,
   INITIAL_TEACHER,
+  INITIAL_SYSTEM,
   INITIAL_USER,
 } from '../seedData.ts';
 import {
@@ -572,29 +573,34 @@ export class SupabaseAuthRepository implements IAuthRepository {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('tulips_current_user');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            this.localUser = { ...this.localUser, ...parsed };
+      const isLoggedOut = localStorage.getItem('tulips_logged_out') === 'true';
+      if (isLoggedOut) {
+        this.localUser = null as any;
+      } else {
+        try {
+          const raw = localStorage.getItem('tulips_current_user');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              this.localUser = { ...this.localUser, ...parsed };
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
       try {
         auth.onAuthStateChanged((fbUser) => {
-          if (fbUser) {
-            const oldId = this.localUser.id;
-            const isGoogleLinked = this.localUser.isGoogleAccount && this.localUser.email === fbUser.email;
-            if (!isGoogleLinked || this.localUser.id !== fbUser.uid) {
+          if (fbUser && localStorage.getItem('tulips_logged_out') !== 'true') {
+            const oldId = this.localUser?.id;
+            const isGoogleLinked = this.localUser?.isGoogleAccount && this.localUser.email === fbUser.email;
+            if (!isGoogleLinked || this.localUser?.id !== fbUser.uid) {
               this.localUser = {
-                ...this.localUser,
+                ...(this.localUser || INITIAL_USER),
                 id: fbUser.uid,
-                name: this.localUser.name && this.localUser.name !== '生徒' && this.localUser.name !== '担当教諭'
+                name: this.localUser?.name && this.localUser.name !== '生徒' && this.localUser.name !== '担当教諭'
                   ? this.localUser.name
-                  : (fbUser.displayName || (this.localUser.role === 'teacher' ? '担当教諭' : '生徒')),
-                email: fbUser.email || this.localUser.email,
+                  : (fbUser.displayName || (this.localUser?.role === 'teacher' ? '担当教諭' : '生徒')),
+                email: fbUser.email || this.localUser?.email || '',
                 isGoogleAccount: true,
               };
               try {
@@ -618,6 +624,11 @@ export class SupabaseAuthRepository implements IAuthRepository {
   }
 
   async getCurrentUser(): Promise<User | null> {
+    if (typeof window !== 'undefined' && localStorage.getItem('tulips_logged_out') === 'true') {
+      return null;
+    }
+    if (!this.localUser) return null;
+
     const client = getSupabaseClient();
     if (client) {
       try {
@@ -639,12 +650,13 @@ export class SupabaseAuthRepository implements IAuthRepository {
 
   async loginWithGoogle(intendedRole: UserRole = 'student'): Promise<User> {
     try {
+      localStorage.removeItem('tulips_logged_out');
       const result = await signInWithPopup(auth, googleAuthProvider);
       const fbUser = result.user;
-      const oldId = this.localUser.id;
+      const oldId = this.localUser?.id;
       const isTeacher = intendedRole === 'teacher';
 
-      // サーバーまたはSupabaseからこのUIDの既存ユーザーデータがあるか探索（別Googleアカウントへの切り替え対応）
+      // サーバーまたはSupabaseからこのUIDの既存ユーザーデータがあるか探索
       let existingUser: User | null = null;
       const client = getSupabaseClient();
       if (client) {
@@ -674,18 +686,18 @@ export class SupabaseAuthRepository implements IAuthRepository {
         email: fbUser.email || existingUser.email,
         name: fbUser.displayName || existingUser.name,
       } : {
-        ...this.localUser,
+        ...(this.localUser || INITIAL_USER),
         id: fbUser.uid,
         name: fbUser.displayName || (isTeacher ? '担当教諭' : '生徒'),
         email: fbUser.email || '',
         role: intendedRole,
-        grade: isTeacher ? undefined : (this.localUser.grade || 2),
+        grade: isTeacher ? undefined : (this.localUser?.grade || 2),
         classRoom: isTeacher
-          ? (this.localUser.classRoom && this.localUser.classRoom !== '1組' ? this.localUser.classRoom : '数学科・学年主任')
-          : (this.localUser.classRoom || '1組'),
-        studentNumber: isTeacher ? undefined : (this.localUser.studentNumber || 1),
-        weeklyGoalMinutes: this.localUser.weeklyGoalMinutes || 900,
-        focusSubjectId: this.localUser.focusSubjectId || 'math',
+          ? (this.localUser?.classRoom && this.localUser.classRoom !== '1組' ? this.localUser.classRoom : '数学科・学年主任')
+          : (this.localUser?.classRoom || '1組'),
+        studentNumber: isTeacher ? undefined : (this.localUser?.studentNumber || 1),
+        weeklyGoalMinutes: this.localUser?.weeklyGoalMinutes || 900,
+        focusSubjectId: this.localUser?.focusSubjectId || 'math',
         isGoogleAccount: true,
       };
 
@@ -696,7 +708,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
         localStorage.setItem(storageKey, JSON.stringify(this.localUser));
       } catch {}
 
-      // ConoHa サーバー API に旧IDからの学習記録移行も含めて即座に同期
+      // ConoHa サーバー API に同期
       try {
         await fetch('/api/users/sync', {
           method: 'POST',
@@ -707,7 +719,6 @@ export class SupabaseAuthRepository implements IAuthRepository {
         console.warn('[ConoHa API] users/sync error:', err);
       }
 
-      // Supabase の users テーブルにも Google アカウントの情報を同期保存 & 記録移行
       if (client) {
         try {
           if (oldId && oldId !== updatedUser.id) {
@@ -753,24 +764,25 @@ export class SupabaseAuthRepository implements IAuthRepository {
     } catch (e) {
       console.warn('[Firebase] SignOut error:', e);
     }
-    const isTeacher = this.localUser.role === 'teacher';
-    this.localUser = isTeacher ? { ...INITIAL_TEACHER } : { ...INITIAL_USER };
     try {
+      localStorage.setItem('tulips_logged_out', 'true');
       localStorage.removeItem('tulips_current_user');
-      localStorage.removeItem(isTeacher ? 'tulips_teacher_user' : 'tulips_student_user');
+      localStorage.removeItem('tulips_teacher_user');
+      localStorage.removeItem('tulips_student_user');
     } catch {}
+    this.localUser = null as any;
   }
 
   async switchRole(role: UserRole): Promise<User> {
-    // 役割切り替え時に各ロールの直近Google連携状態を復元（連携情報の消滅を防止）
-    const storageKey = role === 'teacher' ? 'tulips_teacher_user' : 'tulips_student_user';
+    localStorage.removeItem('tulips_logged_out');
+    const storageKey = role === 'teacher' ? 'tulips_teacher_user' : role === 'system' ? 'tulips_system_user' : 'tulips_student_user';
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
           this.localUser = {
-            ...(role === 'teacher' ? INITIAL_TEACHER : INITIAL_USER),
+            ...(role === 'teacher' ? INITIAL_TEACHER : role === 'system' ? INITIAL_SYSTEM : INITIAL_USER),
             ...parsed,
             role,
           };
@@ -785,6 +797,12 @@ export class SupabaseAuthRepository implements IAuthRepository {
         ...INITIAL_TEACHER,
         id: this.localUser?.role === 'teacher' && this.localUser.id !== 'teacher-001' ? this.localUser.id : 'teacher-001',
         role: 'teacher',
+      };
+    } else if (role === 'system') {
+      this.localUser = {
+        ...INITIAL_SYSTEM,
+        id: 'system-001',
+        role: 'system',
       };
     } else {
       this.localUser = {

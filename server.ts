@@ -14,6 +14,7 @@ import {
   INITIAL_SUBJECTS,
   INITIAL_TASKS,
   INITIAL_TEACHER,
+  INITIAL_SYSTEM,
 } from './src/infrastructure/seedData.ts';
 import {
   Material,
@@ -159,6 +160,25 @@ app.get('/api/health', (_req: Request, res: Response) => {
     dataDirectory: DATA_DIR,
     firebaseProject: firebaseConfig.projectId,
   });
+});
+
+// --- 管理者用 データベース完全初期化（全データ削除） ---
+app.post('/api/admin/reset-db', (_req: Request, res: Response) => {
+  try {
+    const freshDb: ConoHaDatabase = {
+      users: [INITIAL_TEACHER, INITIAL_SYSTEM],
+      subjects: INITIAL_SUBJECTS,
+      materials: INITIAL_MATERIALS,
+      tasks: INITIAL_TASKS,
+      studentTasks: [],
+      records: [],
+    };
+    saveDatabase(freshDb);
+    db = freshDb;
+    res.json({ success: true, message: 'データベースの全データを正常に初期化・削除しました。' });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to reset database' });
+  }
 });
 
 // --- Firebase Firestore 疎通確認エンドポイント ---

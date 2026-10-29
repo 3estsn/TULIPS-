@@ -219,6 +219,43 @@ export const SystemPortalView: React.FC = () => {
           <div className="text-xs text-zinc-400 py-4 text-center">サーバー情報を取得中...</div>
         )}
       </div>
+
+      {/* データベース初期化・全データ削除 */}
+      <div className="bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-900/60 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center space-x-2.5 border-b border-rose-100 dark:border-rose-950 pb-3">
+          <AlertCircle className="w-5 h-5 text-rose-500" />
+          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+            データ完全リセット（登録アカウント・学習記録の削除）
+          </h2>
+        </div>
+
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          現在登録されているすべてのアカウント情報、学習記録、計画データを完全に削除し、システムを初期状態に戻します。
+        </p>
+
+        <button
+          type="button"
+          onClick={async () => {
+            if (!window.confirm('本当にすべての登録データ・アカウントを削除して初期化しますか？この操作は元に戻せません。')) return;
+            try {
+              const res = await fetch('/api/admin/reset-db', { method: 'POST' });
+              if (res.ok) {
+                localStorage.clear();
+                localStorage.setItem('tulips_logged_out', 'true');
+                alert('すべてのデータを完全に削除・初期化しました。ログイン画面に戻ります。');
+                window.location.reload();
+              } else {
+                alert('初期化に失敗しました。');
+              }
+            } catch (err) {
+              alert('通信エラーが発生しました。');
+            }
+          }}
+          className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+        >
+          全データを削除して初期化する
+        </button>
+      </div>
     </div>
   );
 };
