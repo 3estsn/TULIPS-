@@ -17,6 +17,7 @@ import {
 } from '../domain/models/index.ts';
 import { services } from '../infrastructure/ServiceContainer.ts';
 import { subscribeToSupabaseRealtime, syncSupabaseConfigFromServer } from '../infrastructure/supabase.ts';
+import { useSupabaseRealtime } from '../hooks/useSupabaseRealtime.ts';
 
 export type NavTab =
   | 'home'
@@ -162,7 +163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAccentColorState(newColor);
   };
 
-  const refreshData = async () => {
+  const refreshData = React.useCallback(async () => {
     try {
       const user = await services.authRepository.getCurrentUser();
       setCurrentUser(user);
@@ -191,7 +192,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Supabase Realtime カスタムフックによる自動購読（URL入力不要）
+  useSupabaseRealtime('study_records', React.useCallback(() => {
+    refreshData();
+  }, [refreshData]));
+
+  useSupabaseRealtime('regular_test_tasks', React.useCallback(() => {
+    refreshData();
+  }, [refreshData]));
+
+  useSupabaseRealtime('student_tasks', React.useCallback(() => {
+    refreshData();
+  }, [refreshData]));
+
+  useSupabaseRealtime('users', React.useCallback(() => {
+    refreshData();
+  }, [refreshData]));
 
   useEffect(() => {
     refreshData();
@@ -199,12 +217,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // サーバーから Supabase 設定を同期取得（別端末でも自動設定）
     syncSupabaseConfigFromServer().then((updated) => {
       if (updated) refreshData();
-    });
-
-    // 1. Supabase Realtime イベント（全テーブルの変更）を購読して自動同期
-    const unsubscribe = subscribeToSupabaseRealtime((event) => {
-      console.log('[Supabase Realtime Event]', event.table, event.eventType);
-      refreshData();
     });
 
     // 2. ConoHa サーバー SSE (/api/events) による全端末リアルタイム同期
@@ -233,7 +245,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('focus', onFocus);
 
     return () => {
-      unsubscribe();
       if (eventSource) eventSource.close();
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);

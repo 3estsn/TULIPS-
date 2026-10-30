@@ -70,6 +70,7 @@ export const SettingsView: React.FC = () => {
   const [supabaseStatus, setSupabaseStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('idle');
   const [supabaseStatusDetail, setSupabaseStatusDetail] = useState<string>('');
   const [isSqlOpen, setIsSqlOpen] = useState<boolean>(false);
+  const [isAdvancedSupabaseOpen, setIsAdvancedSupabaseOpen] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   useEffect(() => {
@@ -295,36 +296,14 @@ export const SettingsView: React.FC = () => {
           </span>
         </div>
 
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Supabaseと接続すると、学習記録の追加や定期テスト課題の配信・完了チェックが全端末間で瞬時にリアルタイム反映されます。
-        </p>
-
-        {/* 接続設定フォーム */}
-        <div className="space-y-3 pt-1">
-          <div>
-            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-              Supabase Project URL
-            </label>
-            <input
-              type="text"
-              value={supabaseUrl}
-              onChange={(e) => setSupabaseUrl(e.target.value)}
-              placeholder="https://your-project.supabase.co"
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-              Supabase Anon Key（公開APIキー）
-            </label>
-            <input
-              type="password"
-              value={supabaseAnonKey}
-              onChange={(e) => setSupabaseAnonKey(e.target.value)}
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden"
-            />
+        {/* 自動リンク通知（URL入力不要） */}
+        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-start space-x-2.5">
+          <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="font-bold">URL入力不要で自動リンク中</div>
+            <div className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80">
+              既定のクラウド設定と<code>useSupabaseRealtime</code>により、学習記録やタスクが全端末間で自動同期されます。
+            </div>
           </div>
         </div>
 
@@ -349,6 +328,61 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
 
+        {/* 高度な接続設定（通常は入力不要）トグル */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setIsAdvancedSupabaseOpen(!isAdvancedSupabaseOpen)}
+            className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center space-x-1 cursor-pointer"
+          >
+            <span>高度な接続設定（別プロジェクトを指定する場合のみ）</span>
+            {isAdvancedSupabaseOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {isAdvancedSupabaseOpen && (
+          <div className="space-y-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/60 mt-1">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                Supabase Project URL
+              </label>
+              <input
+                type="text"
+                value={supabaseUrl}
+                onChange={(e) => setSupabaseUrl(e.target.value)}
+                placeholder="https://your-project.supabase.co"
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                Supabase Anon Key（公開APIキー）
+              </label>
+              <input
+                type="password"
+                value={supabaseAnonKey}
+                onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 pt-1">
+              <button
+                type="button"
+                onClick={() => runSupabaseTest(supabaseUrl, supabaseAnonKey)}
+                disabled={supabaseStatus === 'checking'}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-opacity hover:opacity-95 cursor-pointer"
+                style={{ backgroundColor: accentColor, color: accentForeground }}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${supabaseStatus === 'checking' ? 'animate-spin' : ''}`} />
+                <span>手動設定で再テスト</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <button
             type="button"
@@ -357,17 +391,6 @@ export const SettingsView: React.FC = () => {
           >
             <span>Supabaseテーブル作成SQL</span>
             {isSqlOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => runSupabaseTest(supabaseUrl, supabaseAnonKey)}
-            disabled={supabaseStatus === 'checking'}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-opacity hover:opacity-95 cursor-pointer"
-            style={{ backgroundColor: accentColor, color: accentForeground }}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${supabaseStatus === 'checking' ? 'animate-spin' : ''}`} />
-            <span>設定を保存してリアルタイム同期テスト</span>
           </button>
         </div>
 

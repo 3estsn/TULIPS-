@@ -24,6 +24,7 @@ import { useApp } from '../../context/AppContext.tsx';
 import { StudyRecord, User } from '../../domain/models/index.ts';
 import { services } from '../../infrastructure/ServiceContainer.ts';
 import { formatMinutes } from '../../utils/timeFormat.ts';
+import { useSupabaseRealtime } from '../../hooks/useSupabaseRealtime.ts';
 
 interface StudentSummary {
   user: User;
@@ -62,45 +63,60 @@ export const TeacherDashboardView: React.FC = () => {
     }
   };
 
+  const load = React.useCallback(async () => {
+    const [studentsList, recordsList] = await Promise.all([
+      services.authRepository.getStudentsList(),
+      services.studyRecordRepository.getAllRecords(),
+    ]);
+
+    const DEMO_STUDENT_IDS = new Set(['student-002', 'student-003', 'student-004', 'student-005', 'student-006']);
+    const DEMO_STUDENT_NAMES = new Set(['田中 陽翔', '伊藤 葵', '渡辺 蓮', '小林 結衣', '高橋 湊']);
+    const cleanStudents = studentsList.filter(
+      (s) => !DEMO_STUDENT_IDS.has(s.id) && !DEMO_STUDENT_NAMES.has(s.name)
+    );
+
+    setStudents(cleanStudents);
+    setAllRecords(recordsList);
+
+    const computed: StudentSummary[] = await Promise.all(
+      cleanStudents.map(async (student) => {
+        const stats = await services.studyRecordRepository.calculateStatistics(student.id);
+        const studentRecs = recordsList
+          .filter((r) => r.userId === student.id)
+          .sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+
+        return {
+          user: student,
+          weekMinutes: stats.thisWeek.totalMinutes,
+          todayMinutes: stats.today.totalMinutes,
+          cumulativeMinutes: stats.cumulative.totalMinutes,
+          streakDays: stats.streakDays,
+          lastRecord: studentRecs[0],
+        };
+      }),
+    );
+
+    setSummaries(computed);
+  }, []);
+
+  // Supabase Realtime 自動購読 (URL入力不要で全生徒の study_records と users を購読)
+  const { isConnected: isRealtimeLive } = useSupabaseRealtime(
+    'study_records',
+    React.useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  useSupabaseRealtime(
+    'users',
+    React.useCallback(() => {
+      load();
+    }, [load])
+  );
+
   useEffect(() => {
-    const load = async () => {
-      const [studentsList, recordsList] = await Promise.all([
-        services.authRepository.getStudentsList(),
-        services.studyRecordRepository.getAllRecords(),
-      ]);
-
-      const DEMO_STUDENT_IDS = new Set(['student-002', 'student-003', 'student-004', 'student-005', 'student-006']);
-      const DEMO_STUDENT_NAMES = new Set(['田中 陽翔', '伊藤 葵', '渡辺 蓮', '小林 結衣', '高橋 湊']);
-      const cleanStudents = studentsList.filter(
-        (s) => !DEMO_STUDENT_IDS.has(s.id) && !DEMO_STUDENT_NAMES.has(s.name)
-      );
-
-      setStudents(cleanStudents);
-      setAllRecords(recordsList);
-
-      const computed: StudentSummary[] = await Promise.all(
-        cleanStudents.map(async (student) => {
-          const stats = await services.studyRecordRepository.calculateStatistics(student.id);
-          const studentRecs = recordsList
-            .filter((r) => r.userId === student.id)
-            .sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
-
-          return {
-            user: student,
-            weekMinutes: stats.thisWeek.totalMinutes,
-            todayMinutes: stats.today.totalMinutes,
-            cumulativeMinutes: stats.cumulative.totalMinutes,
-            streakDays: stats.streakDays,
-            lastRecord: studentRecs[0],
-          };
-        }),
-      );
-
-      setSummaries(computed);
-    };
-
     load();
-    const interval = setInterval(load, 4000);
+    const interval = setInterval(load, 5000);
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
 
@@ -108,7 +124,7 @@ export const TeacherDashboardView: React.FC = () => {
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, []);
+  }, [load]);
 
   const openStudentDetail = async (summary: StudentSummary) => {
     setSelectedStudent(summary);
@@ -146,9 +162,25 @@ export const TeacherDashboardView: React.FC = () => {
           <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
             教員専用ポータル
           </div>
-          <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            生徒の学習時間 統計情報
-          </h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
+              生徒の学習時間 統計情報
+            </h1>
+            <span
+              className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                isRealtimeLive
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isRealtimeLive ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'
+                }`}
+              />
+              <span>{isRealtimeLive ? 'Supabase Realtime同期中' : '自動同期接続中'}</span>
+            </span>
+          </div>
         </div>
       </div>
 

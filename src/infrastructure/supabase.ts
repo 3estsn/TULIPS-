@@ -11,6 +11,20 @@ export interface SupabaseConfig {
   anonKey: string;
 }
 
+// ユーザー入力なしで即座にリアルタイム同期を有効化する既定のSupabaseプロジェクト設定
+export const DEFAULT_SUPABASE_URL = 'https://kgiszkybhakkwoxmkxnh.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnaXN6a3liaGFra3dveG1reG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1NjgyMDcsImV4cCI6MjEwODE0NDIwN30.rCKWekBKXlw9gvzgUfsXGT8rs3P4CxAgqWhgJZnX6lo';
+
+export function sanitizeSupabaseUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  let cleaned = rawUrl.trim();
+  // /$0 などのアーティファクトや末尾スラッシュの除去
+  cleaned = cleaned.replace(/\/+\$0\/?$/i, '').replace(/\/\$0$/i, '');
+  cleaned = cleaned.replace(/\/+$/, '');
+  return cleaned;
+}
+
 export function getStoredSupabaseConfig(): SupabaseConfig {
   let url = '';
   let anonKey = '';
@@ -19,25 +33,35 @@ export function getStoredSupabaseConfig(): SupabaseConfig {
     const savedUrl = localStorage.getItem('tulips_supabase_url');
     const savedKey = localStorage.getItem('tulips_supabase_anon_key');
     if (savedUrl && savedKey) {
-      url = savedUrl.trim();
+      url = sanitizeSupabaseUrl(savedUrl);
       anonKey = savedKey.trim();
     }
   } catch {}
 
   // 環境変数からのフォールバック
   if (!url && typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) {
-    url = String(import.meta.env.VITE_SUPABASE_URL).trim();
+    url = sanitizeSupabaseUrl(String(import.meta.env.VITE_SUPABASE_URL));
   }
   if (!anonKey && typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) {
     anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim();
   }
 
-  // デフォルト標準フォールバック（ユーザーが未入力でも自動リンクされるように設定）
-  if (!url) {
-    url = 'https://ai-studio-tulips.supabase.co';
+  // もしURLが未入力、またはダミー/無効URLの場合は自動で既定プロジェクトを適用
+  if (
+    !url ||
+    url.includes('ai-studio-tulips') ||
+    url.includes('yourapp-') ||
+    url.includes('163.44.') ||
+    url.includes('localhost')
+  ) {
+    url = DEFAULT_SUPABASE_URL;
   }
-  if (!anonKey) {
-    anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.tulips_default_public_key';
+  if (
+    !anonKey ||
+    anonKey.includes('tulips_default_public_key') ||
+    anonKey.includes('ey.......')
+  ) {
+    anonKey = DEFAULT_SUPABASE_ANON_KEY;
   }
 
   return { url, anonKey };
@@ -255,3 +279,12 @@ function ensureRealtimeSubscription() {
     console.warn('[Supabase Realtime] Failed to setup channel:', err);
   }
 }
+
+// Re-export useSupabaseRealtime hook and types
+export { useSupabaseRealtime } from '../hooks/useSupabaseRealtime.ts';
+export type {
+  UseSupabaseRealtimeOptions,
+  UseSupabaseRealtimeResult,
+  RealtimeChangeEvent,
+  RealtimeSubscriptionStatus,
+} from '../hooks/useSupabaseRealtime.ts';

@@ -545,22 +545,45 @@ app.post('/api/students', (req: Request, res: Response) => {
 });
 
 // --- 全端末自動設定共有 (Supabase / サーバー環境) ---
+const DEFAULT_SUPABASE_URL = 'https://kgiszkybhakkwoxmkxnh.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnaXN6a3liaGFra3dveG1reG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1NjgyMDcsImV4cCI6MjEwODE0NDIwN30.rCKWekBKXlw9gvzgUfsXGT8rs3P4CxAgqWhgJZnX6lo';
+
+function sanitizeUrl(raw: string): string {
+  if (!raw) return '';
+  return raw.trim().replace(/\/+\$0\/?$/i, '').replace(/\/\$0$/i, '').replace(/\/+$/, '');
+}
+
 app.get('/api/config', (_req: Request, res: Response) => {
+  let url = sanitizeUrl(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '');
+  let anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+
+  if (!url || url.includes('yourapp-') || url.includes('ai-studio-tulips')) {
+    url = DEFAULT_SUPABASE_URL;
+  }
+  if (!anonKey || anonKey.includes('ey.......') || anonKey.includes('tulips_default')) {
+    anonKey = DEFAULT_SUPABASE_ANON_KEY;
+  }
+
   res.json({
-    supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+    supabaseUrl: url,
+    supabaseAnonKey: anonKey,
   });
 });
 
 app.post('/api/config', (req: Request, res: Response) => {
   const { supabaseUrl, supabaseAnonKey } = req.body;
   if (supabaseUrl !== undefined) {
-    process.env.VITE_SUPABASE_URL = String(supabaseUrl).trim();
+    process.env.VITE_SUPABASE_URL = sanitizeUrl(String(supabaseUrl));
   }
   if (supabaseAnonKey !== undefined) {
     process.env.VITE_SUPABASE_ANON_KEY = String(supabaseAnonKey).trim();
   }
-  res.json({ success: true, supabaseUrl: process.env.VITE_SUPABASE_URL, supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY });
+  res.json({
+    success: true,
+    supabaseUrl: process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL,
+    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY,
+  });
 });
 
 // --- 本番環境静的ファイル配信 (Vite dist/) ---

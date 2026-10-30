@@ -23,7 +23,10 @@ import {
   getStoredSupabaseConfig,
   saveSupabaseConfig,
   testSupabaseConnection,
+  DEFAULT_SUPABASE_URL,
+  DEFAULT_SUPABASE_ANON_KEY,
 } from '../../infrastructure/supabase.ts';
+import { useSupabaseRealtime } from '../../hooks/useSupabaseRealtime.ts';
 
 export const SystemPortalView: React.FC = () => {
   const { currentUser, refreshData } = useApp();
@@ -35,6 +38,15 @@ export const SystemPortalView: React.FC = () => {
   const [isSqlOpen, setIsSqlOpen] = useState<boolean>(true);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [serverHealth, setServerHealth] = useState<any>(null);
+
+  // useSupabaseRealtime カスタムフックによる study_records の購読状態監視
+  const {
+    isConnected: isRealtimeHookConnected,
+    status: realtimeHookStatus,
+    lastEvent: realtimeLastEvent,
+  } = useSupabaseRealtime('study_records', () => {
+    refreshData();
+  });
 
   const runSupabaseTest = async (urlToTest?: string, keyToTest?: string) => {
     if (urlToTest !== undefined && keyToTest !== undefined) {
@@ -54,6 +66,13 @@ export const SystemPortalView: React.FC = () => {
       setSupabaseStatus('error');
       setSupabaseStatusDetail(err?.message || '接続エラーが発生しました。');
     }
+  };
+
+  const handleResetToDefault = () => {
+    setSupabaseUrl(DEFAULT_SUPABASE_URL);
+    setSupabaseAnonKey(DEFAULT_SUPABASE_ANON_KEY);
+    saveSupabaseConfig(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
+    runSupabaseTest(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
   };
 
   useEffect(() => {
@@ -105,7 +124,7 @@ export const SystemPortalView: React.FC = () => {
           </div>
           <span
             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-              supabaseStatus === 'connected'
+              supabaseStatus === 'connected' || isRealtimeHookConnected
                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                 : supabaseStatus === 'checking'
                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
@@ -114,16 +133,49 @@ export const SystemPortalView: React.FC = () => {
                 : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
             }`}
           >
-            {supabaseStatus === 'connected' && '● 接続成功 (WebSocketリアルタイム同期中)'}
+            {(supabaseStatus === 'connected' || isRealtimeHookConnected) && '● 自動接続完了 (Realtime同期中)'}
             {supabaseStatus === 'checking' && '接続テスト中...'}
             {supabaseStatus === 'error' && '接続エラー'}
-            {supabaseStatus === 'idle' && '○ 未設定'}
+            {supabaseStatus === 'idle' && !isRealtimeHookConnected && '○ 未設定'}
           </span>
         </div>
 
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          SupabaseのProject URLとAnon Keyを入力し、接続テストおよびリアルタイム同期の動作検証を行えます。
-        </p>
+        {/* 自動リンク告知メッセージ */}
+        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200 flex items-start space-x-2.5">
+          <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold">
+              【URL入力不要】既定のSupabaseプロジェクトに自動リンクされています
+            </p>
+            <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
+              全端末で起動時に自動的に設定が読み込まれ、<code>useSupabaseRealtime</code> フックにより
+              <code>study_records</code>, <code>regular_test_tasks</code>, <code>student_tasks</code>, <code>users</code>
+              の変更がURLを入力せずとも即座にリアルタイム同期されます。
+            </p>
+          </div>
+        </div>
+
+        {/* useSupabaseRealtime リアルタイム受信モニター */}
+        <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200 dark:border-zinc-700/60 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-zinc-700 dark:text-zinc-300 flex items-center space-x-1.5">
+              <span className={`w-2 h-2 rounded-full ${isRealtimeHookConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span>useSupabaseRealtime('study_records') 状態:</span>
+            </span>
+            <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200">
+              ステータス: {realtimeHookStatus}
+            </span>
+          </div>
+          {realtimeLastEvent ? (
+            <div className="text-[11px] font-mono bg-zinc-900 text-emerald-400 p-2.5 rounded-xl overflow-x-auto">
+              [最新受信イベント] {realtimeLastEvent.eventType} on {realtimeLastEvent.table} ({new Date().toLocaleTimeString()})
+            </div>
+          ) : (
+            <div className="text-[11px] text-zinc-400 dark:text-zinc-500">
+              テーブル変更のイベント待機中... 生徒側で学習記録を保存するとここに即時通知されます。
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -153,7 +205,7 @@ export const SystemPortalView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 pt-2">
+        <div className="flex flex-wrap items-center gap-3 pt-2">
           <button
             type="button"
             onClick={() => runSupabaseTest(supabaseUrl, supabaseAnonKey)}
@@ -161,7 +213,15 @@ export const SystemPortalView: React.FC = () => {
             className="px-5 py-2.5 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs shadow-md hover:opacity-90 cursor-pointer flex items-center space-x-2 transition-all"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${supabaseStatus === 'checking' ? 'animate-spin' : ''}`} />
-            <span>接続テストを実行する</span>
+            <span>手動接続テストを実行</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetToDefault}
+            className="px-4 py-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-300 font-semibold text-xs border border-zinc-200 dark:border-zinc-700 cursor-pointer transition-colors"
+          >
+            既定のURL/キー設定に戻す
           </button>
         </div>
 
