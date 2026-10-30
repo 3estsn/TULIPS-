@@ -435,4 +435,38 @@ export class ConoHaAuthRepository implements IAuthRepository {
     } catch {}
     return this.fallback.getStudentsList();
   }
+
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const res = await fetch(`${API_BASE}/users`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+    return this.fallback.getAllUsers();
+  }
+
+  async updateAnyUser(userId: string, updates: Partial<User>): Promise<User> {
+    try {
+      const res = await fetch(`${API_BASE}/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+    return this.fallback.updateAnyUser(userId, updates);
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/users/${userId}`, { method: 'DELETE' });
+      if (res.ok) {
+        return true;
+      }
+    } catch {}
+    return this.fallback.deleteUser(userId);
+  }
 }

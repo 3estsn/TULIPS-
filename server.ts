@@ -544,6 +544,55 @@ app.post('/api/students', (req: Request, res: Response) => {
   res.status(201).json(student);
 });
 
+// --- システム管理者用 ユーザー管理 API ---
+app.get('/api/users', (_req: Request, res: Response) => {
+  res.json(db.users);
+});
+
+app.put('/api/users/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const idx = db.users.findIndex((u) => u.id === id);
+  if (idx === -1) {
+    const newUser: User = {
+      id,
+      name: req.body.name || 'ユーザー',
+      email: req.body.email || '',
+      role: req.body.role || 'student',
+      grade: req.body.grade,
+      classRoom: req.body.classRoom,
+      studentNumber: req.body.studentNumber,
+      weeklyGoalMinutes: req.body.weeklyGoalMinutes || 900,
+      focusSubjectId: req.body.focusSubjectId || 'math',
+      isGoogleAccount: Boolean(req.body.isGoogleAccount),
+      ...req.body,
+    };
+    db.users.push(newUser);
+    saveDatabase(db);
+    res.json(newUser);
+    return;
+  }
+
+  db.users[idx] = {
+    ...db.users[idx],
+    ...req.body,
+    id,
+  };
+  saveDatabase(db);
+  res.json(db.users[idx]);
+});
+
+app.delete('/api/users/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const initialLen = db.users.length;
+  db.users = db.users.filter((u) => u.id !== id);
+  if (db.users.length < initialLen) {
+    saveDatabase(db);
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
 // --- 全端末自動設定共有 (Supabase / サーバー環境) ---
 const DEFAULT_SUPABASE_URL = 'https://kgiszkybhakkwoxmkxnh.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY =

@@ -126,4 +126,13 @@ export interface IAuthRepository {
 
   /** 先生用: 生徒一覧の取得 */
   getStudentsList(): Promise<User[]>;
+
+  /** システム管理者用: 全ユーザー（生徒/先生/システム）一覧の取得 */
+  getAllUsers(): Promise<User[]>;
+
+  /** システム管理者用: 他アカウント情報の編集（ロール、学年、クラス、出席番号、メールアドレス等） */
+  updateAnyUser(userId: string, updates: Partial<User>): Promise<User>;
+
+  /** システム管理者用: アカウントの削除 */
+  deleteUser(userId: string): Promise<boolean>;
 }

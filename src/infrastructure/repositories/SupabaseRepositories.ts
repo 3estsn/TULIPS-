@@ -667,6 +667,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
       const fbUser = result.user;
       const oldId = this.localUser?.id;
       const isTeacher = intendedRole === 'teacher';
+      const isSystem = intendedRole === 'system';
 
       // サーバーまたはSupabaseからこのUIDの既存ユーザーデータがあるか探索
       let existingUser: User | null = null;
@@ -698,16 +699,18 @@ export class SupabaseAuthRepository implements IAuthRepository {
         email: fbUser.email || existingUser.email,
         name: fbUser.displayName || existingUser.name,
       } : {
-        ...(this.localUser || INITIAL_USER),
+        ...(this.localUser || (isSystem ? INITIAL_SYSTEM : isTeacher ? INITIAL_TEACHER : INITIAL_USER)),
         id: fbUser.uid,
-        name: fbUser.displayName || (isTeacher ? '担当教諭' : '生徒'),
+        name: fbUser.displayName || (isTeacher ? '担当教諭' : isSystem ? 'システム管理者' : '生徒'),
         email: fbUser.email || '',
         role: intendedRole,
-        grade: isTeacher ? undefined : (this.localUser?.grade || 2),
+        grade: (isTeacher || isSystem) ? undefined : (this.localUser?.grade || 2),
         classRoom: isTeacher
           ? (this.localUser?.classRoom && this.localUser.classRoom !== '1組' ? this.localUser.classRoom : '数学科・学年主任')
+          : isSystem
+          ? '情報システム統括'
           : (this.localUser?.classRoom || '1組'),
-        studentNumber: isTeacher ? undefined : (this.localUser?.studentNumber || 1),
+        studentNumber: (isTeacher || isSystem) ? undefined : (this.localUser?.studentNumber || 1),
         weeklyGoalMinutes: this.localUser?.weeklyGoalMinutes || 900,
         focusSubjectId: this.localUser?.focusSubjectId || 'math',
         isGoogleAccount: true,
@@ -716,7 +719,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
       this.localUser = updatedUser;
       try {
         localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
-        const storageKey = isTeacher ? 'tulips_teacher_user' : 'tulips_student_user';
+        const storageKey = isTeacher ? 'tulips_teacher_user' : isSystem ? 'tulips_system_user' : 'tulips_student_user';
         localStorage.setItem(storageKey, JSON.stringify(this.localUser));
       } catch {}
 
@@ -895,6 +898,74 @@ export class SupabaseAuthRepository implements IAuthRepository {
       }
     } catch {}
     return [];
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const { data, error } = await client.from('users').select('*').order('name');
+        if (!error && data && data.length > 0) {
+          return data.map(toUser);
+        }
+      } catch (err) {
+        console.warn('[Supabase] getAllUsers error:', err);
+      }
+    }
+    try {
+      const serverUsers = await this.conohaAuth.getAllUsers();
+      if (serverUsers && serverUsers.length > 0) {
+        return serverUsers;
+      }
+    } catch {}
+    return this.localUser ? [this.localUser] : [];
+  }
+
+  async updateAnyUser(userId: string, updates: Partial<User>): Promise<User> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const payload: any = {};
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.email !== undefined) payload.email = updates.email;
+        if (updates.role !== undefined) payload.role = updates.role;
+        if (updates.grade !== undefined) payload.grade = updates.grade;
+        if (updates.classRoom !== undefined) payload.class_room = updates.classRoom;
+        if (updates.studentNumber !== undefined) payload.student_number = updates.studentNumber;
+        if (updates.weeklyGoalMinutes !== undefined) payload.weekly_goal_minutes = updates.weeklyGoalMinutes;
+        if (updates.focusSubjectId !== undefined) payload.focus_subject_id = updates.focusSubjectId;
+
+        await client.from('users').update(payload).eq('id', userId);
+      } catch (err) {
+        console.warn('[Supabase] updateAnyUser error:', err);
+      }
+    }
+
+    let resultUser: User = updates as User;
+    try {
+      resultUser = await this.conohaAuth.updateAnyUser(userId, updates);
+    } catch {}
+
+    if (this.localUser && this.localUser.id === userId) {
+      this.localUser = { ...this.localUser, ...updates };
+      try {
+        localStorage.setItem('tulips_current_user', JSON.stringify(this.localUser));
+      } catch {}
+    }
+
+    return resultUser;
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        await client.from('users').delete().eq('id', userId);
+      } catch (err) {
+        console.warn('[Supabase] deleteUser error:', err);
+      }
+    }
+    return this.conohaAuth.deleteUser(userId);
   }
 }
 

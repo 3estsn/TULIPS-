@@ -521,4 +521,46 @@ export class FirestoreAuthRepository implements IAuthRepository {
     } catch {}
     return [...INITIAL_STUDENTS];
   }
+
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ ...d.data(), id: d.id } as User));
+      }
+    } catch {}
+    return [this.localUser, ...INITIAL_STUDENTS];
+  }
+
+  async updateAnyUser(userId: string, updates: Partial<User>): Promise<User> {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, updates);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        return { ...snap.data(), id: snap.id } as User;
+      }
+    } catch {}
+
+    if (this.localUser.id === userId) {
+      this.localUser = { ...this.localUser, ...updates };
+      return { ...this.localUser };
+    }
+    const student = INITIAL_STUDENTS.find((s) => s.id === userId);
+    if (student) {
+      Object.assign(student, updates);
+      return { ...student };
+    }
+    return { ...this.localUser, ...updates, id: userId };
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      return true;
+    } catch {
+      return true;
+    }
+  }
 }
+

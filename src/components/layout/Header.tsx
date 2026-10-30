@@ -30,22 +30,25 @@ export const Header: React.FC = () => {
         <span className="text-xs font-semibold text-zinc-400">高校生向け学習記録システム</span>
       </div>
 
-      {/* 右側アクション：生徒/先生切替 ＆ テーマ切替 */}
+      {/* 右側アクション：ロール表示・切替 ＆ テーマ切替 */}
       <div className="flex items-center space-x-2 sm:space-x-3">
-        {/* 生徒・先生のワンタップ切替バッジ */}
-        <button
-          onClick={() => switchUserRole(isTeacher ? 'student' : 'teacher')}
-          className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
-            isTeacher
-              ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700'
-              : 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700'
-          }`}
-          title="クリックで生徒画面・先生画面を切り替え"
-        >
-          <GraduationCap className="w-3.5 h-3.5 shrink-0" />
-          <span>{isTeacher ? '教員' : '生徒'}</span>
-          <span className="text-[10px] opacity-70 underline ml-0.5">切替</span>
-        </button>
+        {currentUser?.role === 'system' ? (
+          <div className="flex items-center space-x-1 bg-indigo-50 dark:bg-indigo-950/50 p-1 rounded-full border border-indigo-200 dark:border-indigo-800 text-xs">
+            <span className="px-2 py-0.5 font-bold text-indigo-700 dark:text-indigo-300 text-[11px]">
+              管理者
+            </span>
+          </div>
+        ) : isTeacher ? (
+          <div className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold border bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700">
+            <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+            <span>教員専用</span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700">
+            <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+            <span>生徒専用</span>
+          </div>
+        )}
 
         {/* テーマ切替アイコン */}
         <button

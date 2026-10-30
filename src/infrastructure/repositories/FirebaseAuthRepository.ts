@@ -119,4 +119,28 @@ export class FirebaseAuthRepository implements IAuthRepository {
   async getStudentsList(): Promise<User[]> {
     return [...INITIAL_STUDENTS];
   }
+
+  async getAllUsers(): Promise<User[]> {
+    const current = this.currentUser || { ...INITIAL_USER };
+    return [current, ...INITIAL_STUDENTS];
+  }
+
+  async updateAnyUser(userId: string, updates: Partial<User>): Promise<User> {
+    if (this.currentUser && this.currentUser.id === userId) {
+      this.currentUser = { ...this.currentUser, ...updates } as User;
+      this.save();
+      return { ...this.currentUser };
+    }
+    const user = INITIAL_STUDENTS.find((u) => u.id === userId);
+    if (user) {
+      Object.assign(user, updates);
+      return { ...user };
+    }
+    const base = this.currentUser || { ...INITIAL_USER };
+    return { ...base, ...updates, id: userId, name: updates.name || base.name } as User;
+  }
+
+  async deleteUser(_userId: string): Promise<boolean> {
+    return true;
+  }
 }

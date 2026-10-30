@@ -28,7 +28,8 @@ export type NavTab =
   | 'teacher_stats'
   | 'teacher_tasks'
   | 'teacher_materials'
-  | 'system_portal';
+  | 'system_portal'
+  | 'system_users';
 
 export const LIGHT_DEFAULT_ACCENT = '#219134';
 export const DARK_DEFAULT_ACCENT = '#e3fff2';

@@ -34,6 +34,7 @@ export const SettingsView: React.FC = () => {
     accentForeground,
     setAccentColor,
     refreshData,
+    setActiveTab,
   } = useApp();
 
   const [name, setName] = useState<string>(currentUser?.name || '');
@@ -112,75 +113,85 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* 画面モード切替（生徒画面 / 先生画面 / システム画面） */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
-        <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
-          <GraduationCap className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
-          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-            画面モードの切替（生徒 / 教員 / システム）
-          </h2>
+      {/* 画面モード切替（システム管理者のみ切替可能。生徒・教員は自身の固定ロールを表示） */}
+      {currentUser?.role === 'system' ? (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+            <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              画面モードの切替（システム管理者権限）
+            </h2>
+          </div>
+
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            システムアカウントは生徒画面・教員画面・システム管理画面の3種類全てを切り替えて点検・操作できます。
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 text-left transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">生徒画面をプレビュー</span>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                学習記録表・統計・スケジュール
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('teacher_stats')}
+              className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 text-left transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">教員画面をプレビュー</span>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                生徒統計一覧・課題配信
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('system_users')}
+              className="p-3.5 rounded-xl border border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-left transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-indigo-900 dark:text-indigo-200">ユーザー管理・編集</span>
+                <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                生徒/先生アカウントの編集・削除
+              </p>
+            </button>
+          </div>
         </div>
-
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          用途に合わせて、生徒画面、先生画面、システム管理画面をいつでも切り替えて操作できます。
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <button
-            type="button"
-            onClick={() => switchUserRole('student')}
-            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-              currentUser?.role === 'student'
-                ? 'border-zinc-900 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-100'
-                : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">生徒画面</span>
-              {currentUser?.role === 'student' && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              学習時間記録、タイマー計測
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => switchUserRole('teacher')}
-            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+      ) : (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs space-y-2">
+          <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+            <GraduationCap className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              画面権限情報
+            </h2>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-zinc-600 dark:text-zinc-400">現在のアカウント権限:</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
               currentUser?.role === 'teacher'
-                ? 'border-zinc-900 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-100'
-                : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">先生画面</span>
-              {currentUser?.role === 'teacher' && <Check className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              生徒の学習統計、定期テスト配信
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => switchUserRole('system')}
-            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-              currentUser?.role === 'system'
-                ? 'border-zinc-900 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-100'
-                : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">システム</span>
-              {currentUser?.role === 'system' && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Supabase同期テスト、保守管理
-            </p>
-          </button>
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+            }`}>
+              {currentUser?.role === 'teacher' ? '教員アカウント（教員画面専用）' : '生徒アカウント（生徒画面専用）'}
+            </span>
+          </div>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            ※教員アカウントは教員画面のみ、生徒アカウントは生徒画面のみ閲覧可能です。ロールや学年・クラス等の変更はシステム管理者にお問い合わせください。
+          </p>
         </div>
-      </div>
+      )}
 
       {/* ログアウト管理 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">

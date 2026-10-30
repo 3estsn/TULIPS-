@@ -18,6 +18,7 @@ import { TeacherTasksView } from './components/teacher/TeacherTasksView.tsx';
 import { TeacherMaterialStructureEditor } from './components/teacher/TeacherMaterialStructureEditor.tsx';
 import { LoginModal } from './components/auth/LoginModal.tsx';
 import { SystemPortalView } from './components/system/SystemPortalView.tsx';
+import { UserManagementView } from './components/system/UserManagementView.tsx';
 
 const AppContent: React.FC = () => {
   const { activeTab, currentUser } = useApp();
@@ -26,21 +27,53 @@ const AppContent: React.FC = () => {
     return <LoginModal />;
   }
 
-  const isTeacher = currentUser?.role === 'teacher';
-  const isSystem = currentUser?.role === 'system';
+  const role = currentUser?.role;
 
   const renderContent = () => {
+    // 1. 生徒アカウントの閲覧権限ガード（生徒画面のみ閲覧可能）
+    if (role === 'student') {
+      switch (activeTab) {
+        case 'home':
+          return <HomeView />;
+        case 'record':
+          return <RecordView />;
+        case 'stats':
+          return <StatisticsView />;
+        case 'schedule':
+          return <PlannedView />;
+        case 'settings':
+          return <SettingsView />;
+        default:
+          return <HomeView />;
+      }
+    }
+
+    // 2. 教員アカウントの閲覧権限ガード（教員画面のみ閲覧可能）
+    if (role === 'teacher') {
+      switch (activeTab) {
+        case 'teacher_stats':
+          return <TeacherDashboardView />;
+        case 'teacher_tasks':
+          return <TeacherTasksView />;
+        case 'teacher_materials':
+          return <TeacherMaterialStructureEditor />;
+        case 'settings':
+          return <SettingsView />;
+        default:
+          return <TeacherDashboardView />;
+      }
+    }
+
+    // 3. システムアカウント（生徒画面、教員画面、システム画面の全画面を閲覧・操作可能）
     switch (activeTab) {
       case 'home':
-        return isSystem ? <SystemPortalView /> : <HomeView />;
+        return <HomeView />;
       case 'record':
         return <RecordView />;
       case 'stats':
         return <StatisticsView />;
       case 'schedule':
         return <PlannedView />;
-      case 'settings':
-        return <SettingsView />;
       case 'teacher_stats':
         return <TeacherDashboardView />;
       case 'teacher_tasks':
@@ -49,9 +82,12 @@ const AppContent: React.FC = () => {
         return <TeacherMaterialStructureEditor />;
       case 'system_portal':
         return <SystemPortalView />;
+      case 'system_users':
+        return <UserManagementView />;
+      case 'settings':
+        return <SettingsView />;
       default:
-        if (isSystem) return <SystemPortalView />;
-        return isTeacher ? <TeacherDashboardView /> : <HomeView />;
+        return <SystemPortalView />;
     }
   };
 
