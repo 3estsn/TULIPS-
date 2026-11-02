@@ -43,7 +43,7 @@ export const StatisticsView: React.FC = () => {
       : records.filter((r) => r.subjectId === selectedSubjectFilter);
 
   return (
-    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
+    <div className="space-y-4 text-xs sm:text-sm">
       {/* タイトルヘッダー */}
       <div>
         <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">

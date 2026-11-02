@@ -155,7 +155,7 @@ export const TeacherDashboardView: React.FC = () => {
   const activeTodayCount = summaries.filter((s) => s.todayMinutes > 0).length;
 
   return (
-    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
+    <div className="space-y-4 text-xs sm:text-sm">
       {/* 画面ヘッダー */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <div>

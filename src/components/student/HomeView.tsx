@@ -111,7 +111,7 @@ export const HomeView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-20 md:pb-6 text-xs sm:text-sm">
+    <div className="space-y-4 text-xs sm:text-sm">
       {/* 上部ステータスバー: 重視する科目 ＆ 学習記録へのショートカット */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 shadow-xs">
         <div className="flex items-center space-x-2">

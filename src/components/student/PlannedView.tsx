@@ -326,7 +326,7 @@ export const PlannedView: React.FC = () => {
   }, [selectedItemsMap, deadline, bufferDays]);
 
   return (
-    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
+    <div className="space-y-4 text-xs sm:text-sm">
       {/* 画面トップヘッダー */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs">
         <div>

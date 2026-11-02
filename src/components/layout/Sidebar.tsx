@@ -66,7 +66,7 @@ export const Sidebar: React.FC = () => {
     <aside
       className={`hidden md:flex flex-col border-r transition-all duration-300 select-none ${
         isSidebarCollapsed ? 'w-20' : 'w-64'
-      } bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shrink-0 h-screen sticky top-0 z-30`}
+      } bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shrink-0 h-full z-30`}
     >
       {/* 最上部：ハンバーガーアイコン ＆ ブランドヘッダー */}
       <div
@@ -160,7 +160,7 @@ export const Sidebar: React.FC = () => {
       )}
 
       {/* ナビゲーションメニュー */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;

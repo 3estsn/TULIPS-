@@ -41,7 +41,7 @@ export const LoginModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
         
         {/* 見出し */}

@@ -96,7 +96,7 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
+    <div className="max-w-2xl mx-auto space-y-4 text-xs sm:text-sm">
       <div>
         <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
           設定

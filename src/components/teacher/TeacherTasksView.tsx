@@ -99,7 +99,7 @@ export const TeacherTasksView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-20 md:pb-8 text-xs sm:text-sm">
+    <div className="space-y-4 text-xs sm:text-sm">
       {/* サブタブ切り替えバー */}
       <div className="flex border-b border-zinc-200 dark:border-zinc-800 space-x-1 sm:space-x-3">
         <button
