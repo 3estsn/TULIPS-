@@ -383,12 +383,6 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        <AccountCreateModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreated={() => {}}
-        />
-
         {googleAuthError && (
           <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start space-x-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -537,6 +531,13 @@ export const SettingsView: React.FC = () => {
           <span>アカウント情報を保存</span>
         </button>
       </form>
+
+      {/* 新規アカウント作成モーダル（formタグの外側に配置） */}
+      <AccountCreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreated={() => {}}
+      />
     </div>
   );
 };
