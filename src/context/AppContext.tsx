@@ -326,6 +326,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(updated);
     if (role === 'teacher') {
       setActiveTab('teacher_stats');
+    } else if (role === 'system') {
+      setActiveTab('system_users');
     } else {
       setActiveTab('home');
     }

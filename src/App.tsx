@@ -92,16 +92,17 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="h-screen h-[100dvh] bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col md:flex-row overflow-hidden">
-      {/* デスクトップ用サイドバー（左側固定・スクロール対象外） */}
+    <div className="h-[100dvh] max-h-[100dvh] min-h-[100svh] w-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col md:flex-row overflow-hidden">
+
+      {/* デスクトップ用サイドバー（画面左側に固定・スクロール対象外） */}
       <Sidebar />
 
-      {/* メインコンテンツエリア */}
+      {/* メインコンテンツエリア（独立スクロール領域） */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <Header />
         <main
           id="main-scroll-container"
-          className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-5 max-w-6xl mx-auto w-full pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:pb-6 overscroll-contain"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-5 max-w-6xl mx-auto w-full pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-6 overscroll-contain"
         >
           {renderContent()}
         </main>
@@ -149,7 +150,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen h-[100dvh] bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex items-center justify-center p-6">
+        <div className="h-[100dvh] min-h-[100svh] w-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-xl text-center space-y-4">
             <div className="w-12 h-12 mx-auto rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg">
               !

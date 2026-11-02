@@ -679,7 +679,7 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
             </select>
           </div>
 
-          <div className="space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-0.5">
+          <div className="space-y-1.5 max-h-[calc(100dvh-280px)] overflow-y-auto pr-0.5">
             {filteredMaterials.map((m) => {
               const isSelected = m.id === selectedMaterial?.id;
               const sub = subjects.find((s) => s.id === m.subjectId);

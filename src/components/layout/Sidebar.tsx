@@ -68,9 +68,9 @@ export const Sidebar: React.FC = () => {
         isSidebarCollapsed ? 'w-20' : 'w-64'
       } bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shrink-0 h-full z-30`}
     >
-      {/* 最上部：ハンバーガーアイコン ＆ ブランドヘッダー */}
+      {/* 最上部：ブランドヘッダー ＆ 折りたたみボタン（画面左側固定） */}
       <div
-        className={`h-16 flex items-center px-4 border-b border-zinc-200 dark:border-zinc-800 ${
+        className={`h-14 sm:h-16 flex items-center px-4 border-b border-zinc-200 dark:border-zinc-800 ${
           isSidebarCollapsed ? 'justify-center' : 'justify-between'
         }`}
       >

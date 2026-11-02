@@ -933,7 +933,7 @@ export const PlannedView: React.FC = () => {
                 </div>
 
                 {/* チェックリスト本体 */}
-                <div className="space-y-1.5 max-h-[calc(100vh-380px)] overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-[calc(100dvh-380px)] overflow-y-auto pr-1">
                   {displayedItems.length === 0 ? (
                     <div className="py-8 text-center text-xs text-zinc-400 border border-dashed rounded-lg">
                       該当する項目はありません。

@@ -335,29 +335,27 @@ export const SettingsView: React.FC = () => {
           </h2>
         </div>
 
-        {/* Google アカウント状態（Firebase Auth 連携） */}
+        {/* アカウント状態（Googleログイン一時停止中案内とアカウント切替） */}
         <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-full bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center font-bold text-sm text-zinc-700 dark:text-zinc-200 shadow-2xs shrink-0">
-              <span className="text-[#4285F4]">G</span>
+              {currentUser?.role === 'system' ? '管' : isTeacher ? '教' : '生'}
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                  {isTeacher ? '先生用 Google アカウント (Firebase Auth)' : '生徒用 Google アカウント (Firebase Auth)'}
+                  {currentUser?.role === 'system'
+                    ? 'システム管理者アカウント'
+                    : isTeacher
+                    ? '先生アカウント'
+                    : '生徒アカウント'}
                 </span>
-                {currentUser?.isGoogleAccount ? (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    連携済み
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
-                    未連携
-                  </span>
-                )}
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  アクティブ
+                </span>
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                {currentUser?.email ? currentUser.email : 'Google アカウントと未接続です'}
+                {currentUser?.email ? currentUser.email : 'ローカル検証用プロファイル'}
               </div>
             </div>
           </div>
@@ -365,12 +363,11 @@ export const SettingsView: React.FC = () => {
           <div className="flex items-center space-x-2 self-end sm:self-auto flex-wrap gap-2">
             <button
               type="button"
-              onClick={handleGoogleSignIn}
-              disabled={isSigningInGoogle}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
+              onClick={logout}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center space-x-1.5 cursor-pointer transition-colors shadow-2xs"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSigningInGoogle ? 'animate-spin' : ''}`} />
-              <span>{currentUser?.isGoogleAccount ? 'Googleアカウント切替' : 'Googleアカウントに接続'}</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>ロール変更（ログアウト）</span>
             </button>
 
             <button
@@ -382,20 +379,6 @@ export const SettingsView: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {googleAuthError && (
-          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start space-x-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold">{googleAuthError}</p>
-              {googleAuthError.includes('Firebase未承認ドメイン') && (
-                <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
-                  ※ ConoHaサーバー（{typeof window !== 'undefined' ? window.location.hostname : '163.44.113.224'}）でGoogleログインを許可するには、Firebase Console の「Authentication &gt; Settings &gt; Authorized domains（承認済みドメイン）」に対象ホストを追加する必要があります。
-                </p>
-              )}
-            </div>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
