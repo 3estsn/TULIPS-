@@ -36,7 +36,7 @@ interface StudentSummary {
 }
 
 export const TeacherDashboardView: React.FC = () => {
-  const { accentColor, currentUser, loginWithGoogle } = useApp();
+  const { accentColor, currentUser } = useApp();
   const [students, setStudents] = useState<User[]>([]);
   const [allRecords, setAllRecords] = useState<StudyRecord[]>([]);
   const [summaries, setSummaries] = useState<StudentSummary[]>([]);
@@ -44,24 +44,6 @@ export const TeacherDashboardView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<StudentSummary | null>(null);
   const [studentDetailRecords, setStudentDetailRecords] = useState<StudyRecord[]>([]);
-  const [isTeacherLoggingIn, setIsTeacherLoggingIn] = useState<boolean>(false);
-  const [teacherLoginError, setTeacherLoginError] = useState<string>('');
-  const [teacherMessage, setTeacherMessage] = useState<string>('');
-
-  const handleTeacherGoogleLogin = async () => {
-    setIsTeacherLoggingIn(true);
-    setTeacherLoginError('');
-    try {
-      await loginWithGoogle('teacher');
-      setTeacherMessage('先生用Googleアカウント（Firebase Auth）と正常に連携しました。');
-      setTimeout(() => setTeacherMessage(''), 3500);
-    } catch (err: any) {
-      console.error('Teacher Google login error:', err);
-      setTeacherLoginError(err?.message || 'Googleログインに失敗しました');
-    } finally {
-      setIsTeacherLoggingIn(false);
-    }
-  };
 
   const load = React.useCallback(async () => {
     const [studentsList, recordsList] = await Promise.all([
@@ -184,66 +166,6 @@ export const TeacherDashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* 先生用Googleアカウント連携バナー */}
-      <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-teal-50/60 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-teal-950/30 border border-blue-200 dark:border-blue-800/80 rounded-2xl p-4 shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-800 border border-blue-200 dark:border-blue-700/60 flex items-center justify-center font-bold text-blue-600 dark:text-blue-400 shadow-2xs shrink-0">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  {currentUser?.name || '担当教諭'}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  ({currentUser?.classRoom || '数学科・学年主任'})
-                </span>
-                {currentUser?.isGoogleAccount ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    Google連携済
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
-                    Google未連携
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 flex items-center space-x-1.5">
-                <span>Googleアカウント:</span>
-                <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">
-                  {currentUser?.email ? currentUser.email : '未接続（下のボタンから連携可能）'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleTeacherGoogleLogin}
-            disabled={isTeacherLoggingIn}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 shadow-2xs flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 transition-colors shrink-0"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-blue-400 ${isTeacherLoggingIn ? 'animate-spin' : ''}`} />
-            <span>{currentUser?.isGoogleAccount ? 'Googleアカウント切替' : 'Googleアカウントに接続'}</span>
-          </button>
-        </div>
-
-        {teacherMessage && (
-          <div className="p-2.5 rounded-lg bg-emerald-100/70 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200 text-xs flex items-center space-x-2">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>{teacherMessage}</span>
-          </div>
-        )}
-
-        {teacherLoginError && (
-          <div className="p-2.5 rounded-lg bg-rose-50 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200 text-xs flex items-center space-x-2">
-            <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
-            <span>{teacherLoginError}</span>
-          </div>
-        )}
-      </div>
-
       {/* サマリーカード */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xs">
@@ -328,14 +250,14 @@ export const TeacherDashboardView: React.FC = () => {
                 該当する生徒の記録はありません
               </p>
               <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-sm mx-auto">
-                生徒がGoogleアカウントでログインまたは学習記録を登録すると、ここに自動でリアルタイム表示されます。
+                生徒がログインまたは学習記録を登録すると、ここに自動でリアルタイム表示されます。
               </p>
             </div>
           ) : (
             <table className="w-full text-left text-xs">
               <thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-semibold">
                 <tr>
-                  <th className="py-3 px-3">氏名 / 連携アカウント</th>
+                  <th className="py-3 px-3">氏名 / アカウント</th>
                   <th className="py-3 px-3">クラス / 番号</th>
                   <th className="py-3 px-3">今週の学習時間</th>
                   <th className="py-3 px-3">今日の学習時間</th>
@@ -354,14 +276,9 @@ export const TeacherDashboardView: React.FC = () => {
                     <td className="py-3 px-3 whitespace-nowrap">
                       <div className="flex items-center space-x-1.5">
                         <span className="font-bold text-zinc-900 dark:text-zinc-100">{s.user.name}</span>
-                        {s.user.isGoogleAccount && (
-                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                            Google
-                          </span>
-                        )}
                       </div>
                       <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono mt-0.5">
-                        {s.user.email ? s.user.email : 'メール未連携'}
+                        {s.user.email ? s.user.email : 'メール未設定'}
                       </div>
                     </td>
                     <td className="py-3 px-3 whitespace-nowrap font-medium">
@@ -419,17 +336,12 @@ export const TeacherDashboardView: React.FC = () => {
                   <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                     {selectedStudent.user.grade}年 {selectedStudent.user.classRoom} {selectedStudent.user.studentNumber ? `${selectedStudent.user.studentNumber}番` : ''}
                   </span>
-                  {selectedStudent.user.isGoogleAccount && (
-                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                      Google連携
-                    </span>
-                  )}
                 </div>
                 <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
                   {selectedStudent.user.name} さんの学習カルテ
                 </h3>
                 <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-0.5">
-                  アカウント: {selectedStudent.user.email || '未連携'}
+                  メール: {selectedStudent.user.email || '未設定'}
                 </div>
               </div>
               <button

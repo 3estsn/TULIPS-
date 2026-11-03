@@ -80,7 +80,7 @@ export const AccountCreateModal: React.FC<AccountCreateModalProps> = ({ isOpen, 
         </div>
 
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Googleアカウントの変更とは別に、独立した新しいアカウントを新規作成します。ログインする役割を選択してください。
+          独立した新しいアカウントを新規作成します。ログインする役割（生徒・先生・システム）を選択してください。
         </p>
 
         <form onSubmit={handleCreateNewAccountSubmit} className="space-y-4">

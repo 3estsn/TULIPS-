@@ -261,7 +261,7 @@ export const UserManagementView: React.FC = () => {
                 <th className="py-3 px-4">ロール</th>
                 <th className="py-3 px-4">学年・クラス・番号</th>
                 <th className="py-3 px-4">メールアドレス</th>
-                <th className="py-3 px-4">Google連携</th>
+                <th className="py-3 px-4">状態</th>
                 <th className="py-3 px-4 text-right">操作</th>
               </tr>
             </thead>
@@ -317,14 +317,10 @@ export const UserManagementView: React.FC = () => {
                         {u.email || '未設定'}
                       </td>
                       <td className="py-3 px-4">
-                        {u.isGoogleAccount ? (
-                          <span className="inline-flex items-center text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />
-                            連携済
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-zinc-400">未連携</span>
-                        )}
+                        <span className="inline-flex items-center text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />
+                          有効
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end space-x-1.5">

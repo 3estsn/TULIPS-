@@ -187,7 +187,7 @@ export const LoginModal: React.FC = () => {
           </button>
 
           <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500">
-            ※ 検証の簡便化のためGoogle認証を一時休止中。ワンクリックで対象ロールとして操作・閲覧を開始できます。
+            ※ ワンクリックで対象ロール（生徒・先生・システム管理）として操作・閲覧を開始できます。
           </p>
         </div>
 

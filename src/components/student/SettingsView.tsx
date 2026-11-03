@@ -26,7 +26,6 @@ export const SettingsView: React.FC = () => {
     subjects,
     updateUserProfile,
     switchUserRole,
-    loginWithGoogle,
     logout,
     theme,
     setTheme,
@@ -47,8 +46,6 @@ export const SettingsView: React.FC = () => {
   const [focusSubjectId, setFocusSubjectId] = useState<string>(currentUser?.focusSubjectId || 'math');
   const [customHex, setCustomHex] = useState<string>(accentColor);
   const [savedMessage, setSavedMessage] = useState<string>('');
-  const [isSigningInGoogle, setIsSigningInGoogle] = useState<boolean>(false);
-  const [googleAuthError, setGoogleAuthError] = useState<string>('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -56,22 +53,6 @@ export const SettingsView: React.FC = () => {
       setName(currentUser.name);
     }
   }, [currentUser?.name]);
-
-  const handleGoogleSignIn = async () => {
-    setIsSigningInGoogle(true);
-    setGoogleAuthError('');
-    try {
-      await loginWithGoogle(currentUser?.role || 'student');
-      setSavedMessage('Googleアカウント（Firebase Auth）と正常に連携・再同期しました。');
-      setTimeout(() => setSavedMessage(''), 3500);
-    } catch (err: any) {
-      console.error('Google sign-in error:', err);
-      const msg = err?.message || String(err);
-      setGoogleAuthError(msg);
-    } finally {
-      setIsSigningInGoogle(false);
-    }
-  };
 
   const isTeacher = currentUser?.role === 'teacher';
 
@@ -335,7 +316,7 @@ export const SettingsView: React.FC = () => {
           </h2>
         </div>
 
-        {/* アカウント状態（Googleログイン一時停止中案内とアカウント切替） */}
+        {/* アカウント状態とロール管理 */}
         <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-full bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center font-bold text-sm text-zinc-700 dark:text-zinc-200 shadow-2xs shrink-0">
@@ -355,7 +336,7 @@ export const SettingsView: React.FC = () => {
                 </span>
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                {currentUser?.email ? currentUser.email : 'ローカル検証用プロファイル'}
+                {currentUser?.email ? currentUser.email : 'メールアドレス未設定'}
               </div>
             </div>
           </div>
