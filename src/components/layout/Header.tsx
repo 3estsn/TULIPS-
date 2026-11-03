@@ -3,13 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { BookOpen, GraduationCap, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, GraduationCap, Sun, Moon, WifiOff } from 'lucide-react';
 import { useApp } from '../../context/AppContext.tsx';
 
 export const Header: React.FC = () => {
   const { currentUser, switchUserRole, accentColor, accentForeground, theme, setTheme } = useApp();
   const isTeacher = currentUser?.role === 'teacher';
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   return (
     <header className="h-14 sm:h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between">
@@ -32,6 +44,13 @@ export const Header: React.FC = () => {
 
       {/* 右側アクション：ロール表示・切替 ＆ テーマ切替 */}
       <div className="flex items-center space-x-2 sm:space-x-3">
+        {isOffline && (
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800 animate-pulse">
+            <WifiOff className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">オフライン（ローカル保存）</span>
+            <span className="sm:hidden">オフライン</span>
+          </div>
+        )}
         {currentUser?.role === 'system' ? (
           <div className="flex items-center space-x-1 bg-indigo-50 dark:bg-indigo-950/50 p-1 rounded-full border border-indigo-200 dark:border-indigo-800 text-xs">
             <span className="px-2 py-0.5 font-bold text-indigo-700 dark:text-indigo-300 text-[11px]">

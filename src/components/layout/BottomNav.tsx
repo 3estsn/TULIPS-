@@ -90,48 +90,63 @@ export const BottomNav: React.FC = () => {
     return (
       <nav
         aria-label="モバイルナビゲーション"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around shadow-lg"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] shadow-lg"
       >
-        <button
-          onClick={() => setActiveTab('teacher_stats')}
-          className={`flex flex-col items-center py-1 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-            activeTab === 'teacher_stats'
-              ? 'text-zinc-900 dark:text-zinc-100 font-semibold'
-              : 'text-zinc-500 dark:text-zinc-400'
-          }`}
-          style={{ color: activeTab === 'teacher_stats' ? accentColor : undefined }}
-        >
-          <Users className="w-5 h-5 mb-0.5" />
-          <span>生徒統計</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('teacher_tasks')}
-          className="flex flex-col items-center -top-3 relative cursor-pointer"
-        >
-          <div
-            className="w-13 h-13 rounded-full flex items-center justify-center shadow-md transition-transform active:scale-95"
-            style={{ backgroundColor: accentColor, color: accentForeground }}
-          >
-            <ClipboardList className="w-6 h-6" />
+        <div className="grid grid-cols-3 items-center w-full max-w-md mx-auto">
+          {/* 左: 生徒統計 */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setActiveTab('teacher_stats')}
+              className={`flex flex-col items-center py-1 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'teacher_stats'
+                  ? 'text-zinc-900 dark:text-zinc-100 font-semibold'
+                  : 'text-zinc-500 dark:text-zinc-400'
+              }`}
+              style={{ color: activeTab === 'teacher_stats' ? accentColor : undefined }}
+            >
+              <Users className="w-5 h-5 mb-0.5" />
+              <span className="text-[11px]">生徒統計</span>
+            </button>
           </div>
-          <span className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 mt-1">
-            課題設定
-          </span>
-        </button>
 
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center py-1 px-3 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-            activeTab === 'settings'
-              ? 'text-zinc-900 dark:text-zinc-100 font-semibold'
-              : 'text-zinc-500 dark:text-zinc-400'
-          }`}
-          style={{ color: activeTab === 'settings' ? accentColor : undefined }}
-        >
-          <Settings className="w-5 h-5 mb-0.5" />
-          <span>設定</span>
-        </button>
+          {/* 中央: 課題配信（画面の真ん中に完全センタリング） */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setActiveTab('teacher_tasks')}
+              aria-label="課題配信"
+              className="flex flex-col items-center -top-3.5 relative cursor-pointer group"
+            >
+              <div
+                className="w-13 h-13 rounded-full flex items-center justify-center shadow-md ring-4 ring-white dark:ring-zinc-900 transition-all duration-200 group-hover:scale-105 active:scale-95"
+                style={{ backgroundColor: accentColor, color: accentForeground }}
+              >
+                <ClipboardList className="w-6 h-6 stroke-[2]" />
+              </div>
+              <span
+                className="text-[11px] font-bold mt-0.5"
+                style={{ color: activeTab === 'teacher_tasks' ? accentColor : undefined }}
+              >
+                課題配信
+              </span>
+            </button>
+          </div>
+
+          {/* 右: 設定 */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex flex-col items-center py-1 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'text-zinc-900 dark:text-zinc-100 font-semibold'
+                  : 'text-zinc-500 dark:text-zinc-400'
+              }`}
+              style={{ color: activeTab === 'settings' ? accentColor : undefined }}
+            >
+              <Settings className="w-5 h-5 mb-0.5" />
+              <span className="text-[11px]">設定</span>
+            </button>
+          </div>
+        </div>
       </nav>
     );
   }

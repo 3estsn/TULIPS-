@@ -115,7 +115,7 @@ export const TeacherTasksView: React.FC = () => {
           }}
         >
           <ClipboardList className="w-4 h-4" />
-          <span>定期テスト課題配信</span>
+          <span>課題配信</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-200 dark:bg-zinc-700">
             {tasks.length}
           </span>

@@ -1,24 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="TULIPS" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
-    <title>TULIPS（仮）- 高校向け学習記録表</title>
-    <meta name="description" content="高校生向け学習記録・管理システム。学習時間記録、タイマー、学習統計、定期テスト課題管理。" />
-    <meta property="og:title" content="TULIPS（仮）- 高校向け学習記録表" />
-    <meta property="og:description" content="高校生向け学習記録・管理システム。学習時間記録、タイマー、学習統計、定期テスト課題管理。" />
+    <meta name="theme-color" content="#219134" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>TULIPS - 高校生向け学習記録システム</title>
+    <meta name="description" content="高校生向け学習記録・管理システム。オフライン対応、タイマー、学習統計、課題管理。" />
+    <meta property="og:title" content="TULIPS - 高校生向け学習記録システム" />
+    <meta property="og:description" content="高校生向け学習記録・管理システム。オフライン対応、タイマー、学習統計、課題管理。" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // 画面のピンチズーム・ダブルタップズームを無効化
+      document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener('gestureend', function (e) { e.preventDefault(); }, { passive: false });
+      // iOS Safariのダブルタップズーム防止
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', function (event) {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          event.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, { passive: false });
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

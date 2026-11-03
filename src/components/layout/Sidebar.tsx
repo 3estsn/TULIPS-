@@ -47,7 +47,7 @@ export const Sidebar: React.FC = () => {
 
   const teacherMenuItems: { id: NavTab; label: string; icon: LucideIcon }[] = [
     { id: 'teacher_stats', label: '生徒学習統計', icon: Users },
-    { id: 'teacher_tasks', label: '定期テスト課題配信', icon: ClipboardList },
+    { id: 'teacher_tasks', label: '課題配信', icon: ClipboardList },
     { id: 'teacher_materials', label: '教材構造マスター', icon: Layers },
     { id: 'settings', label: '設定', icon: Settings },
   ];
@@ -82,11 +82,11 @@ export const Sidebar: React.FC = () => {
             >
               {isSystem ? <ShieldCheck className="w-5 h-5" /> : <BookOpen className="w-5 h-5" />}
             </div>
-            <div className="flex flex-col truncate">
-              <span className="font-bold text-base tracking-tight text-zinc-900 dark:text-zinc-100">
+            <div className="flex flex-col truncate overflow-hidden">
+              <span className="font-bold text-base tracking-tight text-zinc-900 dark:text-zinc-100 whitespace-nowrap truncate">
                 TULIPS
               </span>
-              <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 truncate">
+              <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 truncate whitespace-nowrap">
                 {isSystem ? 'システム管理コンソール' : '高校向け学習記録表'}
               </span>
             </div>
@@ -103,19 +103,19 @@ export const Sidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* ロールバッジ（展開時） */}
+      {/* ロールバッジ（展開時） - アニメーション時も改行されず1行表示を維持 */}
       {!isSidebarCollapsed && (
-        <div className="px-3 pt-3">
+        <div className="px-3 pt-3 overflow-hidden">
           {isSystem ? (
-            <div className="px-3 py-2.5 rounded-xl text-xs bg-indigo-50 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
-              <div className="flex items-center space-x-2 font-bold mb-1.5">
+            <div className="px-3 py-2.5 rounded-xl text-xs bg-indigo-50 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40 overflow-hidden">
+              <div className="flex items-center space-x-2 font-bold mb-1.5 whitespace-nowrap overflow-hidden">
                 <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>システム管理者（全画面閲覧可能）</span>
+                <span className="whitespace-nowrap truncate">システム管理者（全画面閲覧可能）</span>
               </div>
-              <div className="grid grid-cols-3 gap-1 pt-0.5 text-[10px]">
+              <div className="grid grid-cols-3 gap-1 pt-0.5 text-[10px] whitespace-nowrap">
                 <button
                   onClick={() => setActiveTab('home')}
-                  className={`px-1.5 py-1 rounded text-center font-semibold transition-colors cursor-pointer ${
+                  className={`px-1.5 py-1 rounded text-center font-semibold transition-colors cursor-pointer truncate whitespace-nowrap ${
                     activeTab === 'home' || activeTab === 'record' || activeTab === 'stats' || activeTab === 'schedule'
                       ? 'bg-indigo-600 text-white'
                       : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100'
@@ -125,7 +125,7 @@ export const Sidebar: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('teacher_stats')}
-                  className={`px-1.5 py-1 rounded text-center font-semibold transition-colors cursor-pointer ${
+                  className={`px-1.5 py-1 rounded text-center font-semibold transition-colors cursor-pointer truncate whitespace-nowrap ${
                     activeTab === 'teacher_stats' || activeTab === 'teacher_tasks' || activeTab === 'teacher_materials'
                       ? 'bg-indigo-600 text-white'
                       : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100'
@@ -135,7 +135,7 @@ export const Sidebar: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('system_users')}
-                  className={`px-1.5 py-1 rounded text-center font-semibold transition-colors cursor-pointer ${
+                  className={`px-1.5 py-1 rounded text-center font-semibold transition-colors cursor-pointer truncate whitespace-nowrap ${
                     activeTab === 'system_users' || activeTab === 'system_portal'
                       ? 'bg-indigo-600 text-white'
                       : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100'
@@ -146,14 +146,14 @@ export const Sidebar: React.FC = () => {
               </div>
             </div>
           ) : isTeacher ? (
-            <div className="px-3 py-2 rounded-xl text-xs flex items-center space-x-2 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 font-semibold">
+            <div className="px-3 py-2 rounded-xl text-xs flex items-center space-x-2 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 font-semibold whitespace-nowrap overflow-hidden">
               <GraduationCap className="w-4 h-4 shrink-0" />
-              <span>教員アカウント（教員専用画面）</span>
+              <span className="whitespace-nowrap truncate">教員アカウント（教員専用画面）</span>
             </div>
           ) : (
-            <div className="px-3 py-2 rounded-xl text-xs flex items-center space-x-2 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 font-semibold">
+            <div className="px-3 py-2 rounded-xl text-xs flex items-center space-x-2 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 font-semibold whitespace-nowrap overflow-hidden">
               <GraduationCap className="w-4 h-4 shrink-0" />
-              <span>生徒アカウント（生徒専用画面）</span>
+              <span className="whitespace-nowrap truncate">生徒アカウント（生徒専用画面）</span>
             </div>
           )}
         </div>
@@ -210,11 +210,11 @@ export const Sidebar: React.FC = () => {
             {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
           </div>
           {!isSidebarCollapsed && (
-            <div className="flex-1 truncate">
-              <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+            <div className="flex-1 truncate overflow-hidden">
+              <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate whitespace-nowrap">
                 {currentUser?.name || 'ゲスト'}
               </div>
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate whitespace-nowrap">
                 {isSystem
                   ? 'システム統括責任者'
                   : isTeacher
