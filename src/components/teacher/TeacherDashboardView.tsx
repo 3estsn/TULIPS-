@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Users,
   Search,
@@ -98,13 +99,47 @@ export const TeacherDashboardView: React.FC = () => {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 5000);
+
+    // 1. ConoHa サーバー SSE (/api/events) による全端末リアルタイム即時反映
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload?.event === 'data_changed') {
+            load();
+          }
+        } catch {}
+      };
+    } catch {}
+
+    // 2. 同一端末・タブ間 BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('tulips_sync');
+      bc.onmessage = () => {
+        load();
+      };
+    } catch {}
+
+    // 3. ウィンドウカスタムイベント
+    const handleRecordAdded = () => {
+      load();
+    };
+    window.addEventListener('tulips:record_added', handleRecordAdded);
+
+    // 4. 定期バックアップポーリング（3秒間隔）
+    const interval = setInterval(load, 3000);
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
 
     return () => {
-      clearInterval(interval);
+      if (eventSource) eventSource.close();
+      if (bc) bc.close();
+      window.removeEventListener('tulips:record_added', handleRecordAdded);
       window.removeEventListener('focus', onFocus);
+      clearInterval(interval);
     };
   }, [load]);
 
@@ -325,19 +360,24 @@ export const TeacherDashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* 生徒詳細モーダル */}
-      {selectedStudent && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      {/* 生徒詳細モーダル（Portalでdocument.body直下に描画し、開いたハンバーガーメニューやサイドバーに絶対に隠されないようにする） */}
+      {selectedStudent && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedStudent(null);
+          }}
+        >
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[92vh] overflow-hidden flex flex-col shadow-2xl relative">
             {/* モーダルヘッダー */}
-            <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                     {selectedStudent.user.grade}年 {selectedStudent.user.classRoom} {selectedStudent.user.studentNumber ? `${selectedStudent.user.studentNumber}番` : ''}
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
+                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
                   {selectedStudent.user.name} さんの学習カルテ
                 </h3>
                 <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-0.5">
@@ -345,31 +385,33 @@ export const TeacherDashboardView: React.FC = () => {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedStudent(null)}
                 className="p-2 rounded-xl text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                aria-label="閉じる"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* モーダル本文 */}
-            <div className="p-5 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
-                  <div className="text-[11px] text-zinc-400 font-semibold">今週の学習時間</div>
-                  <div className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+                  <div className="text-[10px] sm:text-[11px] text-zinc-400 font-semibold">今週の学習時間</div>
+                  <div className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
                     {formatMinutes(selectedStudent.weekMinutes)}
                   </div>
                 </div>
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
-                  <div className="text-[11px] text-zinc-400 font-semibold">本日の記録</div>
-                  <div className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+                  <div className="text-[10px] sm:text-[11px] text-zinc-400 font-semibold">本日の記録</div>
+                  <div className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
                     {formatMinutes(selectedStudent.todayMinutes)}
                   </div>
                 </div>
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
-                  <div className="text-[11px] text-zinc-400 font-semibold">累計学習時間</div>
-                  <div className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+                  <div className="text-[10px] sm:text-[11px] text-zinc-400 font-semibold">累計学習時間</div>
+                  <div className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 mt-1">
                     {formatMinutes(selectedStudent.cumulativeMinutes)}
                   </div>
                 </div>
@@ -383,7 +425,7 @@ export const TeacherDashboardView: React.FC = () => {
                   {studentDetailRecords.length === 0 ? (
                     <div className="text-xs text-zinc-500 text-center py-4">記録はありません</div>
                   ) : (
-                    studentDetailRecords.slice(0, 10).map((r) => (
+                    studentDetailRecords.slice(0, 15).map((r) => (
                       <div
                         key={r.id}
                         className="p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-xs"
@@ -408,14 +450,16 @@ export const TeacherDashboardView: React.FC = () => {
 
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end">
               <button
+                type="button"
                 onClick={() => setSelectedStudent(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 cursor-pointer shadow-xs"
               >
                 閉じる
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

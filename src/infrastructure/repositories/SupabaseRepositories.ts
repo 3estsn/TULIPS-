@@ -47,88 +47,116 @@ export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
   private fallback = new ConoHaStudyRecordRepository();
 
   async getRecordsByUser(userId: string): Promise<StudyRecord[]> {
-    const client = getSupabaseClient();
-    if (!client) return this.fallback.getRecordsByUser(userId);
+    const recordsMap = new Map<string, StudyRecord>();
 
+    // 1. ConoHa サーバーから取得
     try {
-      const { data, error } = await client
-        .from('study_records')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-      if (data) {
-        return data.map(toStudyRecord);
+      const serverRecords = await this.fallback.getRecordsByUser(userId);
+      for (const r of serverRecords) {
+        if (r && r.id) recordsMap.set(r.id, r);
       }
-    } catch (err) {
-      console.warn('[Supabase] getRecordsByUser error, falling back:', err);
+    } catch {}
+
+    // 2. Supabase から取得して統合
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('study_records')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false });
+
+        if (!error && data) {
+          for (const raw of data) {
+            const mapped = toStudyRecord(raw);
+            recordsMap.set(mapped.id, mapped);
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase] getRecordsByUser error:', err);
+      }
     }
-    return this.fallback.getRecordsByUser(userId);
+
+    const all = Array.from(recordsMap.values());
+    all.sort((a, b) => (b.date === a.date ? (b.createdAt > a.createdAt ? 1 : -1) : b.date > a.date ? 1 : -1));
+    return all;
   }
 
   async getRecordsByDateRange(userId: string, startDate: string, endDate: string): Promise<StudyRecord[]> {
-    const client = getSupabaseClient();
-    if (!client) return this.fallback.getRecordsByDateRange(userId, startDate, endDate);
-
-    try {
-      const { data, error } = await client
-        .from('study_records')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-      if (data) {
-        return data.map(toStudyRecord);
-      }
-    } catch (err) {
-      console.warn('[Supabase] getRecordsByDateRange error, falling back:', err);
-    }
-    return this.fallback.getRecordsByDateRange(userId, startDate, endDate);
+    const all = await this.getRecordsByUser(userId);
+    return all.filter((r) => r.date >= startDate && r.date <= endDate);
   }
 
   async getAllRecords(): Promise<StudyRecord[]> {
-    const client = getSupabaseClient();
-    if (!client) return this.fallback.getAllRecords();
+    const recordsMap = new Map<string, StudyRecord>();
 
+    // 1. ConoHa サーバーから取得
     try {
-      const { data, error } = await client
-        .from('study_records')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      if (data) {
-        return data.map(toStudyRecord);
+      const serverRecords = await this.fallback.getAllRecords();
+      for (const r of serverRecords) {
+        if (r && r.id) recordsMap.set(r.id, r);
       }
-    } catch (err) {
-      console.warn('[Supabase] getAllRecords error, falling back:', err);
+    } catch {}
+
+    // 2. Supabase から取得
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('study_records')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          for (const raw of data) {
+            const mapped = toStudyRecord(raw);
+            recordsMap.set(mapped.id, mapped);
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase] getAllRecords error:', err);
+      }
     }
-    return this.fallback.getAllRecords();
+
+    const all = Array.from(recordsMap.values());
+    all.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
+    return all;
   }
 
   async addRecord(record: Omit<StudyRecord, 'id' | 'createdAt'>): Promise<StudyRecord> {
     const id = `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const createdAt = new Date().toISOString();
-    const created: StudyRecord = { ...record, id, createdAt };
+    let created: StudyRecord = { ...record, id, createdAt };
 
+    // 1. ConoHa サーバーへの確実な送信（全クライアントへ即時SSEブロードキャスト発火）
+    try {
+      const res = await fetch('/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(created),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        if (saved?.id) created = saved;
+      }
+    } catch {}
+
+    // 2. Supabase へ送信
     const client = getSupabaseClient();
     if (client) {
       try {
         const { error } = await client.from('study_records').insert({
-          id,
-          user_id: record.userId,
-          subject_id: record.subjectId,
-          material_id: record.materialId,
-          material_name: record.materialName,
-          date: record.date,
-          duration_minutes: record.durationMinutes,
-          notes: record.notes || null,
-          method: record.method || 'manual',
-          created_at: createdAt,
+          id: created.id,
+          user_id: created.userId,
+          subject_id: created.subjectId,
+          material_id: created.materialId,
+          material_name: created.materialName,
+          date: created.date,
+          duration_minutes: created.durationMinutes,
+          notes: created.notes || null,
+          method: created.method || 'manual',
+          created_at: created.createdAt,
         });
         if (error) {
           console.warn('[Supabase] Failed to insert record:', error);
@@ -138,13 +166,29 @@ export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
       }
     }
 
+    // 3. ローカル側にもフォールバック保存
     try {
-      await this.fallback.addRecord(record);
+      await this.fallback.addRecord(created);
     } catch {}
+
+    // 4. 同一ブラウザの別タブおよび同アプリ内への即時イベント通知
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tulips:record_added', { detail: created }));
+      try {
+        const bc = new BroadcastChannel('tulips_sync');
+        bc.postMessage({ type: 'record_added', record: created });
+        bc.close();
+      } catch {}
+    }
+
     return created;
   }
 
   async deleteRecord(id: string): Promise<boolean> {
+    try {
+      await fetch(`/api/records/${id}`, { method: 'DELETE' });
+    } catch {}
+
     const client = getSupabaseClient();
     if (client) {
       try {

@@ -49,6 +49,11 @@ export const TeacherTasksView: React.FC = () => {
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
 
+  // 開始ページ・終了ページによる範囲指定ステート
+  const [rangeMaterialId, setRangeMaterialId] = useState<string>('');
+  const [rangeStartPage, setRangeStartPage] = useState<string>('');
+  const [rangeEndPage, setRangeEndPage] = useState<string>('');
+
   // 教科に応じた登録済み構造化教材
   const subjectMaterials = materials.filter((m) => m.subjectId === subjectId);
 
@@ -58,9 +63,23 @@ export const TeacherTasksView: React.FC = () => {
       if (!cleanPrev) return textToAppend;
       return `${cleanPrev}、${textToAppend}`;
     });
-    if (!selectedMaterialIds.includes(matId)) {
+    if (matId && !selectedMaterialIds.includes(matId)) {
       setSelectedMaterialIds((prev) => [...prev, matId]);
     }
+  };
+
+  // 開始ページと終了ページの選択だけで範囲を追加
+  const handleAppendScopeByPageRange = () => {
+    const chosenMat = materials.find((m) => m.id === rangeMaterialId) || subjectMaterials[0];
+    const matName = chosenMat ? chosenMat.name : '指定教材';
+    const s = rangeStartPage.trim();
+    const e = rangeEndPage.trim();
+    if (!s && !e) return;
+    const pageText = s && e ? `p.${s}〜p.${e}` : s ? `p.${s}〜` : `〜p.${e}`;
+    const scopeSnippet = `『${matName}』${pageText}`;
+    handleAppendScopeFromStructure(scopeSnippet, chosenMat?.id || '');
+    setRangeStartPage('');
+    setRangeEndPage('');
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -264,17 +283,78 @@ export const TeacherTasksView: React.FC = () => {
               </span>
             </div>
 
+            {/* 開始ページと終了ページの選択だけでも範囲を指定できるクイック設定バー */}
+            <div className="mb-2.5 p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-bold text-emerald-900 dark:text-emerald-200 flex items-center space-x-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>開始ページ・終了ページの選択だけで課題範囲を指定:</span>
+                </div>
+                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                  章構成が未設定の教材でもページ番号だけで指定可能
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {subjectMaterials.length > 0 ? (
+                  <select
+                    value={rangeMaterialId || subjectMaterials[0]?.id || ''}
+                    onChange={(e) => setRangeMaterialId(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-zinc-800 font-medium text-xs max-w-xs"
+                  >
+                    {subjectMaterials.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-zinc-400 text-xs">対象教科の教材がありません</span>
+                )}
+
+                <div className="flex items-center space-x-1">
+                  <span className="text-zinc-500 text-[11px]">開始p:</span>
+                  <input
+                    type="number"
+                    placeholder="例: 12"
+                    value={rangeStartPage}
+                    onChange={(e) => setRangeStartPage(e.target.value)}
+                    className="w-16 px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-zinc-800 text-xs font-bold text-center"
+                  />
+                  <span className="text-zinc-400">〜</span>
+                  <span className="text-zinc-500 text-[11px]">終了p:</span>
+                  <input
+                    type="number"
+                    placeholder="例: 45"
+                    value={rangeEndPage}
+                    onChange={(e) => setRangeEndPage(e.target.value)}
+                    className="w-16 px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-zinc-800 text-xs font-bold text-center"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAppendScopeByPageRange}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors ml-auto"
+                >
+                  ＋ このページ範囲を課題範囲に追加
+                </button>
+              </div>
+            </div>
+
             {/* 教科に応じた登録済み構造化教材のクイック挿入バー */}
             {subjectMaterials.length > 0 && (
               <div className="mb-2 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700/60 space-y-2">
                 <div className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center space-x-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                  <span>登録済み教材の構造から範囲をワンクリック挿入:</span>
+                  <span>登録済み章・節・例題からワンクリック挿入:</span>
                 </div>
                 <div className="space-y-1.5">
                   {subjectMaterials.map((sm) => {
                     const struct = sm.structure;
-                    if (!struct || !struct.chapters || struct.chapters.length === 0) {
+                    const chapters = Array.isArray(struct?.chapters) ? struct.chapters : [];
+                    if (chapters.length === 0) {
+                      const pageLabel = struct?.pageStart && struct?.pageEnd ? ` (p.${struct.pageStart}〜p.${struct.pageEnd})` : '';
                       return (
                         <div key={sm.id} className="flex items-center space-x-1.5 text-[11px]">
                           <span className="font-semibold text-zinc-700 dark:text-zinc-300">
@@ -282,10 +362,10 @@ export const TeacherTasksView: React.FC = () => {
                           </span>
                           <button
                             type="button"
-                            onClick={() => handleAppendScopeFromStructure(`『${sm.name}』指定範囲`, sm.id)}
+                            onClick={() => handleAppendScopeFromStructure(`『${sm.name}』${pageLabel || '全範囲'}`, sm.id)}
                             className="px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-[10px] cursor-pointer"
                           >
-                            + 教材名を追加
+                            + 教材名{pageLabel}を追加
                           </button>
                         </div>
                       );
@@ -298,11 +378,12 @@ export const TeacherTasksView: React.FC = () => {
                           <span>{sm.name}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 pl-4">
-                          {struct.chapters.map((ch) => {
-                            const firstSec = ch.sections[0];
-                            const lastSec = ch.sections[ch.sections.length - 1];
-                            const firstItem = firstSec?.items[0];
-                            const lastItem = lastSec?.items[lastSec?.items.length - 1];
+                          {chapters.map((ch) => {
+                            const secs = ch.sections || [];
+                            const firstSec = secs[0];
+                            const lastSec = secs[secs.length - 1];
+                            const firstItem = firstSec?.items?.[0];
+                            const lastItem = lastSec?.items?.[lastSec?.items?.length - 1];
                             const rangeLabel =
                               firstItem && lastItem
                                 ? `${ch.title}（${firstItem.label}〜${lastItem.label}）`

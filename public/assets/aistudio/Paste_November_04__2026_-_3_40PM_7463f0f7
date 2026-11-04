@@ -1,0 +1,1396 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import type { Book, Chapter, Section, Question } from '../types';
+import {
+  X,
+  BookOpen,
+  Plus,
+  Trash2,
+  Clock,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  Bookmark
+} from 'lucide-react';
+
+interface BookEditorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSaveBook: (book: Book) => Promise<void>;
+  initialBook?: Book | null;
+}
+
+// 題名的要素（目次アイテム）
+export interface TocItemDraft {
+  id: string;
+  // section: 節題, regular: 通常例題, exceptional: 例外例題, named: 通し番号を持たない固有名称の例題
+  kind: 'section' | 'regular' | 'exceptional' | 'named';
+  prefix: string; // 例: "例題", "コラム", 節題・fixed名の場合は空
+  number: string; // 例: "1", "2"; named の場合は空
+  title: string;  // 節題の名称、named の場合は例題の固有名、通常例題は空
+  targetMinutes: number;
+  tags: string[];
+  questionType: string;
+}
+
+export interface ExceptionalPrefixConfig {
+  prefix: string;
+  includeInCycling: boolean;
+}
+
+export interface ChapterDraft {
+  id: string;
+  title: string;
+  items: TocItemDraft[]; // 節題と例題が混在する目次ストリーム
+}
+
+// --- Pure Algorithmic Helper Functions ---
+
+/**
+ * 通常例題および例外例題の番号を再計算・整頓する
+ * 例外的例題も各接頭辞ごとに先頭から早い順（出現順）に独立した通し番号（1, 2, 3...）を付与する
+ */
+export function renumberAllQuestions(
+  currentChapters: ChapterDraft[],
+  isContinuous: boolean,
+  prefixToUse: string
+): ChapterDraft[] {
+  let globalRegularIndex = 1;
+  const exceptionalCounters: Record<string, number> = {};
+
+  return currentChapters.map(chapter => {
+    let chapterRegularIndex = 1;
+    const updatedItems = chapter.items.map(tocItem => {
+      if (tocItem.kind === 'regular') {
+        const num = isContinuous ? globalRegularIndex++ : chapterRegularIndex++;
+        return {
+          ...tocItem,
+          prefix: prefixToUse,
+          number: String(num),
+          tags: []
+        };
+      }
+      if (tocItem.kind === 'exceptional') {
+        const prefix = tocItem.prefix || '例外';
+        const nextExceptionalNum = (exceptionalCounters[prefix] || 0) + 1;
+        exceptionalCounters[prefix] = nextExceptionalNum;
+        return {
+          ...tocItem,
+          prefix,
+          number: String(nextExceptionalNum),
+          tags: []
+        };
+      }
+      return tocItem;
+    });
+    return { ...chapter, items: updatedItems };
+  });
+}
+
+/**
+ * 挿入位置における節題のデフォルト番号（先着順）を計算する
+ * isContinuous = true: 参考書全体の出現順 (1-based)
+ * isContinuous = false: 対象章内での出現順 (1-based)
+ */
+export function calculateNextSectionNumber(
+  chapters: ChapterDraft[],
+  targetChapterId: string,
+  insertIndex: number,
+  isContinuous: boolean
+): number {
+  if (!isContinuous) {
+    const targetChapter = chapters.find(chapter => chapter.id === targetChapterId);
+    if (!targetChapter) return 1;
+    const countBefore = targetChapter.items
+      .slice(0, insertIndex)
+      .filter(tocItem => tocItem.kind === 'section').length;
+    return countBefore + 1;
+  }
+
+  let globalSectionCount = 0;
+  for (const chapter of chapters) {
+    if (chapter.id === targetChapterId) {
+      const countBefore = chapter.items
+        .slice(0, insertIndex)
+        .filter(tocItem => tocItem.kind === 'section').length;
+      globalSectionCount += countBefore;
+      break;
+    }
+    globalSectionCount += chapter.items.filter(tocItem => tocItem.kind === 'section').length;
+  }
+  return globalSectionCount + 1;
+}
+
+/**
+ * 指定章の通常例題の数を targetCount に調整する
+ * 節題や既存の例外例題の相対的な配置構造を壊さないように、既存の通常例題の位置でトリム/拡張する
+ */
+export function adjustRegularQuestionCount(
+  chapter: ChapterDraft,
+  targetCount: number,
+  basePrefix: string,
+  defaultTargetMinutes: number
+): TocItemDraft[] {
+  const safeTargetCount = Math.max(0, targetCount);
+  const currentRegularCount = chapter.items.filter(tocItem => tocItem.kind === 'regular').length;
+
+  if (safeTargetCount === currentRegularCount) {
+    return chapter.items;
+  }
+
+  if (safeTargetCount < currentRegularCount) {
+    // 末尾側から不要な通常例題を削減（節題・例外例題はそのまま維持）
+    let remainingToKeep = safeTargetCount;
+    return chapter.items.filter(tocItem => {
+      if (tocItem.kind !== 'regular') return true;
+      if (remainingToKeep > 0) {
+        remainingToKeep--;
+        return true;
+      }
+      return false;
+    });
+  }
+
+  // safeTargetCount > currentRegularCount: 不足分を末尾に追加
+  const toAdd = safeTargetCount - currentRegularCount;
+  const newQuestions: TocItemDraft[] = Array.from({ length: toAdd }, (_, index) => ({
+    id: `q_${chapter.id}_reg_${Date.now()}_${index}`,
+    kind: 'regular',
+    prefix: basePrefix,
+    number: '1',
+    title: '',
+    targetMinutes: defaultTargetMinutes,
+    tags: [],
+    questionType: 'regular'
+  }));
+
+  return [...chapter.items, ...newQuestions];
+}
+
+/**
+ * 例題番号文字列を「接頭辞」と「番号」に分解する
+ *
+ * 対応パターン:
+ *   "例題1"     → { prefix: "例題", number: "1", hasNumber: true }
+ *   "コラム3"   → { prefix: "コラム", number: "3", hasNumber: true }
+ *   "探求例題5" → { prefix: "探求例題", number: "5", hasNumber: true }
+ *   "問1-3"     → { prefix: "問", number: "1-3", hasNumber: true }
+ *   "1"         → { prefix: "", number: "1", hasNumber: true }
+ *   "証明問題"  → { prefix: "", number: "", hasNumber: false }
+ */
+export function parseQuestionIdentifier(questionNumber: string): {
+  prefix: string;
+  number: string;
+  hasNumber: boolean;
+} {
+  // 先頭の非数字列（接頭辞）+ 末尾の数字列（ハイフン連番や英字サフィックスを含む）にマッチ
+  const match = questionNumber.trim().match(/^([^\d]*?)(\d+(?:-\d+)?[A-Za-z]?)$/);
+  if (match) {
+    return { prefix: match[1].trim(), number: match[2], hasNumber: true };
+  }
+  return { prefix: '', number: '', hasNumber: false };
+}
+
+/**
+ * Book に含まれる全例題の questionNumber を解析し、
+ * 最頻出の接頭辞を通常例題の basePrefix として推定する
+ *
+ * book.basePrefix が未設定（古いデータや BulkImport 経由）の際に呼び出す
+ */
+export function inferPrefixesFromBook(book: Book): {
+  basePrefix: string;
+  exceptionalPrefixes: string[];
+} {
+  const prefixCounts: Record<string, number> = {};
+
+  for (const chapter of book.chapters) {
+    for (const section of chapter.sections) {
+      for (const question of section.questions) {
+        // 明示的に named として分類済みのものはスキップ
+        if (question.questionType === 'named') continue;
+        const { prefix, hasNumber } = parseQuestionIdentifier(question.questionNumber);
+        if (!hasNumber) continue;
+        prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+      }
+    }
+  }
+
+  const entries = Object.entries(prefixCounts).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    return { basePrefix: '例題', exceptionalPrefixes: [] };
+  }
+
+  const basePrefix = entries[0][0]; // 最頻出の接頭辞
+  const exceptionalPrefixes = entries.slice(1).map(entry => entry[0]).filter(prefix => prefix !== basePrefix && prefix !== '');
+
+  return { basePrefix: basePrefix || '例題', exceptionalPrefixes };
+}
+
+/**
+ * 既存の Book エンティティからエディタ用 ChapterDraft[] に変換する
+ *
+ * 分類ルール（優先順位順）:
+ *   1. q.questionType === 'regular'  → regular
+ *   2. q.questionType === 'named'    → named
+ *   3. q.questionType が他の文字列   → exceptional（明示済み）
+ *   4. q.questionType が未設定       → parseQuestionIdentifier で自動推定
+ *      4a. hasNumber かつ prefix === basePrefix → regular
+ *      4b. hasNumber かつ prefix !== basePrefix → exceptional
+ *      4c. hasNumber なし            → named
+ *
+ * 節題：title が空白のものは表示しない（"直接配置"扱い）
+ */
+export function convertBookToDrafts(book: Book): ChapterDraft[] {
+  // basePrefix が未設定の場合は全例題の最頻出接頭辞から推定
+  const inferred = !book.basePrefix ? inferPrefixesFromBook(book) : null;
+  const basePrefix = book.basePrefix ?? inferred?.basePrefix ?? '例題';
+
+  return book.chapters.map(chapter => {
+    const items: TocItemDraft[] = [];
+
+    chapter.sections.forEach((section, sectionIndex) => {
+      // 空タイトルまたは「章全体」を示す汎用単一節は非表示（問題は直接配置）
+      if (section.title.trim() !== '') {
+        items.push({
+          id: section.sectionId || `sec_${chapter.chapterId}_${sectionIndex + 1}`,
+          kind: 'section',
+          prefix: '',
+          number: '',
+          title: section.title,
+          targetMinutes: 0,
+          tags: [],
+          questionType: 'section'
+        });
+      }
+
+      section.questions.forEach(question => {
+        const minuteTime = Math.round((question.defaultTargetTime ?? 900) / 60);
+
+        // --- 1. questionType が明示されている場合 ---
+        if (question.questionType === 'regular') {
+          const { number } = parseQuestionIdentifier(question.questionNumber);
+          items.push({
+            id: question.questionId,
+            kind: 'regular',
+            prefix: basePrefix,
+            number: number || question.questionNumber,
+            title: '',
+            targetMinutes: minuteTime,
+            tags: question.tags || [],
+            questionType: 'regular'
+          });
+          return;
+        }
+
+        if (question.questionType === 'named') {
+          items.push({
+            id: question.questionId,
+            kind: 'named',
+            prefix: '',
+            number: '',
+            title: question.questionNumber, // questionNumber に固有名称が格納されている
+            targetMinutes: minuteTime,
+            tags: question.tags || [],
+            questionType: 'named'
+          });
+          return;
+        }
+
+        if (question.questionType && question.questionType !== 'regular' && question.questionType !== 'named') {
+          // 明示的に例外分類済み（'コラム' など）
+          const { prefix, number } = parseQuestionIdentifier(question.questionNumber);
+          items.push({
+            id: question.questionId,
+            kind: 'exceptional',
+            prefix: prefix || question.questionType,
+            number: number || question.questionNumber,
+            title: '',
+            targetMinutes: minuteTime,
+            tags: question.tags || [],
+            questionType: question.questionType
+          });
+          return;
+        }
+
+        // --- 2. questionType 未設定 → questionNumber から自動推定 ---
+        const { prefix, number, hasNumber } = parseQuestionIdentifier(question.questionNumber);
+
+        if (!hasNumber) {
+          // 数字を持たない固有名称の例題
+          items.push({
+            id: question.questionId,
+            kind: 'named',
+            prefix: '',
+            number: '',
+            title: question.questionNumber,
+            targetMinutes: minuteTime,
+            tags: question.tags || [],
+            questionType: 'named'
+          });
+          return;
+        }
+
+        if (prefix === basePrefix) {
+          // 最頻出接頭辞 = 通常例題
+          items.push({
+            id: question.questionId,
+            kind: 'regular',
+            prefix: basePrefix,
+            number,
+            title: '',
+            targetMinutes: minuteTime,
+            tags: question.tags || [],
+            questionType: 'regular'
+          });
+        } else {
+          // それ以外 = 例外例題
+          const exceptionalPrefix = prefix || '例外';
+          items.push({
+            id: question.questionId,
+            kind: 'exceptional',
+            prefix: exceptionalPrefix,
+            number,
+            title: '',
+            targetMinutes: minuteTime,
+            tags: question.tags || [],
+            questionType: exceptionalPrefix
+          });
+        }
+      });
+    });
+
+    // 注: 節題がない場合でも dummy セクションは挿入しない
+    // → 問題が節なしで直接表示される（BookTreeView 側でタイトルなし節を透過表示）
+
+    return {
+      id: chapter.chapterId,
+      title: chapter.title,
+      items
+    };
+  });
+}
+
+/**
+ * エディタの ChapterDraft[] から保存用の Chapter[] (Section・Question階層構造) を構築する
+ *
+ * - named アイテム: title を questionNumber として保存、questionType = 'named'
+ * - 節題なし（section アイテムが出現する前の問題）: title = "" の節として保存
+ *   → BookTreeView 側で title === "" の節はヘッダーを非表示にする
+ */
+export function convertDraftsToChapters(
+  chapterDrafts: ChapterDraft[],
+  defaultTargetMinutes: number
+): Chapter[] {
+  return chapterDrafts.map((chapterDraft, chapterIndex) => {
+    const sections: Section[] = [];
+    // title = "" = 節題が設定されていない（直接配置）を示す初期セクション
+    let currentSection: Section = {
+      sectionId: `sec_${chapterDraft.id}_1`,
+      title: '',
+      questions: []
+    };
+
+    chapterDraft.items.forEach(tocItem => {
+      if (tocItem.kind === 'section') {
+        if (currentSection.questions.length > 0) {
+          sections.push(currentSection);
+          currentSection = {
+            sectionId: `sec_${chapterDraft.id}_${sections.length + 1}`,
+            title: tocItem.title.trim() || `第${sections.length + 1}節`,
+            questions: []
+          };
+        } else {
+          // まだ問題が追加されていない → セクションタイトルだけ更新
+          currentSection.title = tocItem.title.trim() || currentSection.title;
+        }
+      } else if (tocItem.kind === 'named') {
+        // 固有名称例題: title を questionNumber として格納
+        currentSection.questions.push({
+          questionId: tocItem.id,
+          questionNumber: tocItem.title,
+          defaultTargetTime: (tocItem.targetMinutes || defaultTargetMinutes) * 60,
+          tags: tocItem.tags,
+          questionType: 'named'
+        });
+      } else {
+        // regular / exceptional
+        currentSection.questions.push({
+          questionId: tocItem.id,
+          questionNumber: `${tocItem.prefix}${tocItem.number}`,
+          defaultTargetTime: (tocItem.targetMinutes || defaultTargetMinutes) * 60,
+          tags: tocItem.tags.length > 0 ? tocItem.tags : [],
+          questionType: tocItem.questionType
+        });
+      }
+    });
+
+    sections.push(currentSection);
+
+    return {
+      chapterId: chapterDraft.id || `chap_${chapterIndex + 1}`,
+      title: chapterDraft.title.trim() || `第${chapterIndex + 1}章`,
+      sections
+    };
+  });
+}
+
+/**
+ * デフォルト章の生成ヘルパー
+ */
+export function createDefaultChapter(
+  title: string,
+  prefix: string,
+  count: number,
+  minutes: number,
+  startNum: number = 1
+): ChapterDraft {
+  const chapterId = `chap_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const items: TocItemDraft[] = [
+    {
+      id: `sec_${chapterId}_1`,
+      kind: 'section',
+      prefix: '',
+      number: '',
+      title: '第1節',
+      targetMinutes: 0,
+      tags: [],
+      questionType: 'section'
+    }
+  ];
+
+  for (let i = 0; i < count; i++) {
+    items.push({
+      id: `q_${chapterId}_reg_${startNum + i}`,
+      kind: 'regular',
+      prefix,
+      number: String(startNum + i),
+      title: '',
+      targetMinutes: minutes,
+      tags: [],
+      questionType: 'regular'
+    });
+  }
+
+  return {
+    id: chapterId,
+    title,
+    items
+  };
+}
+
+export function BookEditorModal({
+  isOpen,
+  onClose,
+  onSaveBook,
+  initialBook
+}: BookEditorModalProps) {
+  // A. 参考書名
+  const [bookTitle, setBookTitle] = useState('');
+
+  // E. デフォルト目標分数
+  const [defaultTargetMinutes, setDefaultTargetMinutes] = useState(15);
+
+  // B. 通常例題の接頭辞
+  const [basePrefix, setBasePrefix] = useState('例題');
+
+  // 通常例題の番号を全体で通し番号（連続）にするか章ごとに独立させるか
+  const [continuousRegularNumbering, setContinuousRegularNumbering] = useState<boolean>(false);
+
+  // 例外的例題の接頭辞設定（サイクリングに含めるかも接頭辞単位で管理）
+  const [exceptionalConfigs, setExceptionalConfigs] = useState<ExceptionalPrefixConfig[]>([
+    { prefix: 'コラム', includeInCycling: false }
+  ]);
+  const [newPrefixInput, setNewPrefixInput] = useState('');
+
+  // 章リスト
+  const [chapters, setChapters] = useState<ChapterDraft[]>([]);
+
+  // 開閉アコーディオン
+  const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
+
+  // 編集中の節題ID
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  // 挿入ダイアログ状態
+  const [insertModalState, setInsertModalState] = useState<{
+    chapterId: string;
+    insertIndex: number;
+  } | null>(null);
+
+  const [insertForm, setInsertForm] = useState<{
+    kind: 'section' | 'exceptional' | 'named';
+    prefix: string;
+    title: string;
+    targetMinutes: number;
+  }>({
+    kind: 'exceptional',
+    prefix: 'コラム',
+    title: '新しい節',
+    targetMinutes: 15
+  });
+
+  // モーダル表示中は背景のスクロールを固定
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
+  // 初期化・既存参考書の復元
+  useEffect(() => {
+    if (initialBook) {
+      setBookTitle(initialBook.title);
+      setDefaultTargetMinutes(initialBook.defaultTargetMinutes ?? 15);
+
+      // basePrefix / exceptionalPrefixes が未設定（旧データや BulkImport 経由）の場合は推定
+      const inferred = (!initialBook.basePrefix || !initialBook.exceptionalPrefixes)
+        ? inferPrefixesFromBook(initialBook)
+        : null;
+
+      const currentBasePrefix = initialBook.basePrefix ?? inferred?.basePrefix ?? '例題';
+      setBasePrefix(currentBasePrefix);
+      const isContinuous = initialBook.continuousRegularNumbering ?? false;
+      setContinuousRegularNumbering(isContinuous);
+
+      const savedCyclingTypes = new Set(initialBook.includedCyclingTypes ?? ['regular', 'named']);
+      const exceptionalPrefixes = initialBook.exceptionalPrefixes ?? inferred?.exceptionalPrefixes ?? [];
+
+      setExceptionalConfigs(
+        exceptionalPrefixes.map(prefix => ({
+          prefix,
+          includeInCycling: savedCyclingTypes.has(prefix)
+        }))
+      );
+
+      const converted = convertBookToDrafts(initialBook);
+      const initialChapters = converted.length > 0 ? converted : [createDefaultChapter('第1章', currentBasePrefix, 12, 15, 1)];
+      setChapters(renumberAllQuestions(initialChapters, isContinuous, currentBasePrefix));
+    } else {
+      // 新規作成初期値
+      setBookTitle('');
+      setDefaultTargetMinutes(15);
+      setBasePrefix('例題');
+      setContinuousRegularNumbering(false);
+      setExceptionalConfigs([
+        { prefix: 'コラム', includeInCycling: false }
+      ]);
+      const defaultChapters = [
+        createDefaultChapter('第1章', '例題', 14, 15, 1),
+        createDefaultChapter('第2章', '例題', 14, 15, 1)
+      ];
+      setChapters(renumberAllQuestions(defaultChapters, false, '例題'));
+    }
+  }, [initialBook, isOpen]);
+
+  // 接頭辞追加
+  const handleAddExceptionalConfig = () => {
+    const trimmed = newPrefixInput.trim();
+    if (!trimmed) return;
+    if (!exceptionalConfigs.some(config => config.prefix === trimmed) && trimmed !== basePrefix) {
+      setExceptionalConfigs([
+        ...exceptionalConfigs,
+        { prefix: trimmed, includeInCycling: false }
+      ]);
+    }
+    setNewPrefixInput('');
+  };
+
+  // 接頭辞削除
+  const handleRemoveExceptionalConfig = (prefixToRemove: string) => {
+    setExceptionalConfigs(exceptionalConfigs.filter(config => config.prefix !== prefixToRemove));
+  };
+
+  // 接頭辞のサイクリング含むフラグトグル
+  const handleTogglePrefixCycling = (prefix: string) => {
+    setExceptionalConfigs(exceptionalConfigs.map(config => {
+      if (config.prefix === prefix) {
+        return { ...config, includeInCycling: !config.includeInCycling };
+      }
+      return config;
+    }));
+  };
+
+  // 通し番号設定切り替え
+  const handleToggleContinuousNumbering = (checked: boolean) => {
+    setContinuousRegularNumbering(checked);
+    setChapters(prev => renumberAllQuestions(prev, checked, basePrefix));
+  };
+
+  // 通常接頭辞の変更
+  const handleChangeBasePrefix = (newPrefix: string) => {
+    setBasePrefix(newPrefix);
+    setChapters(prev => renumberAllQuestions(prev, continuousRegularNumbering, newPrefix));
+  };
+
+  // 章追加
+  const handleAddChapter = () => {
+    const nextChapterIndex = chapters.length + 1;
+    let nextStartNum = 1;
+    if (continuousRegularNumbering) {
+      let totalExistingRegular = 0;
+      chapters.forEach(chapter => {
+        totalExistingRegular += chapter.items.filter(tocItem => tocItem.kind === 'regular').length;
+      });
+      nextStartNum = totalExistingRegular + 1;
+    }
+
+    const newChapter = createDefaultChapter(`第${nextChapterIndex}章`, basePrefix, 12, defaultTargetMinutes, nextStartNum);
+    const updated = [...chapters, newChapter];
+    setChapters(renumberAllQuestions(updated, continuousRegularNumbering, basePrefix));
+    setExpandedChapters(prev => ({ ...prev, [newChapter.id]: true }));
+  };
+
+  // 章削除
+  const handleRemoveChapter = (chapterId: string) => {
+    if (chapters.length <= 1) {
+      alert('最低1つの章が必要です。');
+      return;
+    }
+    const filtered = chapters.filter(chapter => chapter.id !== chapterId);
+    setChapters(renumberAllQuestions(filtered, continuousRegularNumbering, basePrefix));
+  };
+
+  // 章タイトル更新
+  const handleUpdateChapterTitle = (chapterId: string, title: string) => {
+    setChapters(chapters.map(chapter => chapter.id === chapterId ? { ...chapter, title } : chapter));
+  };
+
+  // 通常例題のカウント数を直接一括調整
+  const handleSetRegularCount = (chapterId: string, newCount: number) => {
+    const updated = chapters.map(chapter => {
+      if (chapter.id !== chapterId) return chapter;
+      return {
+        ...chapter,
+        items: adjustRegularQuestionCount(chapter, newCount, basePrefix, defaultTargetMinutes)
+      };
+    });
+    setChapters(renumberAllQuestions(updated, continuousRegularNumbering, basePrefix));
+  };
+
+  // アイテム（例外的例題または節題）の削除
+  const handleDeleteItem = (chapterId: string, itemId: string) => {
+    const updated = chapters.map(chapter => {
+      if (chapter.id !== chapterId) return chapter;
+      return {
+        ...chapter,
+        items: chapter.items.filter(tocItem => tocItem.id !== itemId)
+      };
+    });
+    setChapters(renumberAllQuestions(updated, continuousRegularNumbering, basePrefix));
+  };
+
+  // 節題タイトルの変更
+  const handleUpdateItemTitle = (chapterId: string, itemId: string, newTitle: string) => {
+    setChapters(chapters.map(chapter => {
+      if (chapter.id !== chapterId) return chapter;
+      return {
+        ...chapter,
+        items: chapter.items.map(tocItem => tocItem.id === itemId ? { ...tocItem, title: newTitle } : tocItem)
+      };
+    }));
+  };
+
+  // 挿入モーダルを開く
+  const handleOpenInsertModal = (chapterId: string, insertIndex: number) => {
+    const defaultPrefix = exceptionalConfigs[0]?.prefix || 'コラム';
+    const sectionNumber = calculateNextSectionNumber(
+      chapters,
+      chapterId,
+      insertIndex,
+      continuousRegularNumbering
+    );
+
+    setInsertForm({
+      kind: 'exceptional',
+      prefix: defaultPrefix,
+      title: `${sectionNumber}`,
+      targetMinutes: defaultTargetMinutes
+    });
+    setInsertModalState({ chapterId, insertIndex });
+  };
+
+  // 挿入実行（例外的な例題も早い順・先頭からの通し番号を自動採番）
+  const handleConfirmInsert = () => {
+    if (!insertModalState) return;
+    const { chapterId, insertIndex } = insertModalState;
+
+    let newItem: TocItemDraft;
+    if (insertForm.kind === 'section') {
+      newItem = {
+        id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        kind: 'section',
+        prefix: '',
+        number: '',
+        title: insertForm.title.trim() || '節',
+        targetMinutes: 0,
+        tags: [],
+        questionType: 'section'
+      };
+    } else {
+      const p = insertForm.prefix.trim() || '例外';
+      newItem = {
+        id: `q_ex_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        kind: 'exceptional',
+        prefix: p,
+        number: '1', // 後でrenumberAllQuestionsで早い順に自動採番
+        title: '',
+        targetMinutes: insertForm.targetMinutes > 0 ? insertForm.targetMinutes : defaultTargetMinutes,
+        tags: [],
+        questionType: p
+      };
+    }
+
+    const updated = chapters.map(chap => {
+      if (chap.id !== chapterId) return chap;
+      const nextItems = [...chap.items];
+      nextItems.splice(insertIndex, 0, newItem);
+      return { ...chap, items: nextItems };
+    });
+
+    setChapters(renumberAllQuestions(updated, continuousRegularNumbering, basePrefix));
+    setInsertModalState(null);
+  };
+
+  // 保存処理
+  const handleSave = async () => {
+    if (!bookTitle.trim()) {
+      alert('参考書名を入力してください。');
+      return;
+    }
+
+    const compiledCyclingTypes = new Set<string>(['regular']);
+    exceptionalConfigs.forEach(c => {
+      if (c.includeInCycling) {
+        compiledCyclingTypes.add(c.prefix);
+      }
+    });
+
+    const finalChapters = convertDraftsToChapters(chapters, defaultTargetMinutes);
+
+    const bookToSave: Book = {
+      bookId: initialBook?.bookId || `book_${Date.now()}`,
+      title: bookTitle.trim(),
+      chapters: finalChapters,
+      createdAt: initialBook?.createdAt || new Date().toISOString(),
+      defaultTargetMinutes,
+      basePrefix,
+      exceptionalPrefixes: exceptionalConfigs.map(c => c.prefix),
+      includedCyclingTypes: Array.from(compiledCyclingTypes),
+      continuousRegularNumbering
+    };
+
+    await onSaveBook(bookToSave);
+    onClose();
+  };
+
+  // 全体統計
+  const totalStats = useMemo(() => {
+    const cyclingPrefixes = new Set(
+      exceptionalConfigs.filter(c => c.includeInCycling).map(c => c.prefix)
+    );
+
+    let regularCount = 0;
+    let exceptionalCount = 0;
+    let sectionCount = 0;
+    let cyclingQuestionsCount = 0;
+
+    for (const chapter of chapters) {
+      for (const tocItem of chapter.items) {
+        if (tocItem.kind === 'regular') {
+          regularCount++;
+          cyclingQuestionsCount++;
+        } else if (tocItem.kind === 'exceptional') {
+          exceptionalCount++;
+          if (cyclingPrefixes.has(tocItem.prefix)) {
+            cyclingQuestionsCount++;
+          }
+        } else {
+          sectionCount++;
+        }
+      }
+    }
+
+    return {
+      regularCount,
+      exceptionalCount,
+      sectionCount,
+      totalCount: regularCount + exceptionalCount,
+      cyclingQuestionsCount
+    };
+  }, [chapters, exceptionalConfigs]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-0 md:p-2">
+      {/* モバイルでは画面全体(w-screen h-screen rounded-none)、PCではモーダル(md:w-full md:max-w-5xl md:h-[94vh] md:rounded-xl) */}
+      <div className="bg-card md:border md:border-border w-screen md:w-full md:max-w-5xl md:h-[94vh] h-screen md:rounded-xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+        {/* モーダルヘッダー */}
+        <div className="px-5 py-3 border-b border-border hidden md:flex items-center justify-between bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="w-4 h-4 text-primary shrink-0" />
+            <div>
+              <h2 className="font-bold text-sm tracking-tight text-foreground font-mono">
+                {initialBook ? 'EDIT BOOK STRUCTURE' : 'NEW BOOK REGISTRATION'}
+              </h2>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono mt-0.5">
+                <span>TOTAL: {chapters.length} CHAPTERS</span>
+                <span>•</span>
+                <span>{totalStats.totalCount} Qs ({totalStats.regularCount} REGULAR + {totalStats.exceptionalCount} EXCEPTION)</span>
+                <span>•</span>
+                <span className="text-(--tag-level-1)">CYCLING TARGET: {totalStats.cyclingQuestionsCount} Qs</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* モーダル本文 */}
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-5 text-xs">
+          {/* 基本設定エリア（参考書名・目標時間・接頭辞） */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-0 md:p-3.5 md:border border-border rounded-lg bg-muted/15">
+            {/* 参考書名 */}
+            <div className="sm:col-span-6">
+              <label className="block font-mono text-[10px] uppercase text-muted-foreground mb-1 font-semibold">
+                BOOK TITLE *
+              </label>
+              <input
+                type="text"
+                value={bookTitle}
+                onChange={(e) => setBookTitle(e.target.value)}
+                className="w-full px-3 py-1.5 bg-secondary border border-border rounded-md text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* 目標時間 */}
+            <div className="sm:col-span-3">
+              <div className="flex gap-1">
+                <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                <label className="block font-mono text-[10px] uppercase text-muted-foreground mb-1 font-semibold">
+                  TARGET TIME
+                </label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={defaultTargetMinutes}
+                  onChange={(e) => setDefaultTargetMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full px-2.5 py-1.5 bg-secondary border border-border rounded-md text-foreground font-mono text-xs text-right focus:outline-none"
+                />
+                <span className="text-[10px] font-mono text-muted-foreground shrink-0">MIN</span>
+              </div>
+            </div>
+
+            {/* 通常例題プレフィックス */}
+            <div className="sm:col-span-3">
+              <label className="block font-mono text-[10px] uppercase text-muted-foreground mb-1 font-semibold">
+                REGULAR PREFIX
+              </label>
+              <input
+                type="text"
+                value={basePrefix}
+                onChange={(e) => handleChangeBasePrefix(e.target.value)}
+                placeholder="例: 例題"
+                className="w-full px-2.5 py-1.5 bg-secondary border border-border rounded-md text-foreground font-mono text-xs focus:outline-none"
+              />
+            </div>
+
+            {/* 通常例題の番号を連続させるかのチェックマーク */}
+            <div className="sm:col-span-12 border-border/40 flex items-center justify-between">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={continuousRegularNumbering}
+                  onChange={(e) => handleToggleContinuousNumbering(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+                />
+                <span className="font-mono text-[11px] text-foreground font-medium">
+                  参考書全体で例題の番号を連続させる
+                </span>
+              </label>
+            </div>
+
+            {/* 例外的な接頭辞設定（サイクリング包含トグル付き） */}
+            <div className="sm:col-span-12 pt-2 border-t border-border/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-muted-foreground font-semibold uppercase flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span>EXCEPTIONAL PREFIXES & CYCLE SETTING</span>
+                </span>
+              </div>
+
+              {/* 新規接頭辞の追加フォーム */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={newPrefixInput}
+                  onChange={(e) => setNewPrefixInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddExceptionalConfig();
+                    }
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-secondary border border-border rounded-md text-foreground font-mono text-xs focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 登録済み例外接頭辞チップ */}
+                {exceptionalConfigs.map(c => (
+                  <div
+                    key={c.prefix}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-[10px] font-mono transition-all ${c.includeInCycling
+                      ? 'border-border/40 text-foreground'
+                      : 'border-border bg-secondary/50 text-muted-foreground'
+                      }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePrefixCycling(c.prefix)}
+                      className="font-semibold"
+                    >
+                      {c.prefix}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePrefixCycling(c.prefix)}
+                      className={`text-center w-5 px-1 py-0.2 rounded text-[9px] font-bold cursor-pointer transition-colors ${c.includeInCycling
+                        ? 'bg-border/40 text-border/40'
+                        : 'bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/30'
+                        }`}
+                    >
+                      {c.includeInCycling ? 'ON' : 'OFF'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExceptionalConfig(c.prefix)}
+                      className="hover:text-destructive cursor-pointer ml-0.5 text-xs text-muted-foreground"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 統合章・目次プレビューセクション */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                  CHAPTERS & TOC MATRIX
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  各要素の間にある区切り線にホバーしてクリックすると、節題や例外例題を追加できます。
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddChapter}
+                className="inline-flex items-center gap-1 px-3 py-1 text-xs h-8 font-mono font-semibold rounded-md border border-dashed border-primary/60 bg-primary/5 hover:bg-primary/10 text-primary transition-all cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>ADD</span>
+              </button>
+            </div>
+
+            {/* 参考書のプレビュー画面（BookTreeView）スタイルに統一された外枠 */}
+            <div className="rounded-lg border border-border bg-card overflow-hidden shadow-2xs divide-y divide-border">
+              {chapters.map((chapter) => {
+                const isExpanded = expandedChapters[chapter.id] ?? true;
+                const regularQuestionsCount = chapter.items.filter(tocItem => tocItem.kind === 'regular').length;
+                const exceptionalQuestionsCount = chapter.items.filter(tocItem => tocItem.kind === 'exceptional').length;
+
+                // PC画面(md:, lg:)では複数列、スマホ(sm以下)では単一の行（1カラム）で表示
+                const STACK_SIZE = Math.max(5, Math.ceil(chapter.items.length / 5));
+                const columns: { startIndex: number; items: TocItemDraft[] }[] = [];
+                for (let i = 0; i < chapter.items.length; i += STACK_SIZE) {
+                  columns.push({
+                    startIndex: i,
+                    items: chapter.items.slice(i, i + STACK_SIZE)
+                  });
+                }
+                if (columns.length === 0) {
+                  columns.push({ startIndex: 0, items: [] });
+                }
+
+                return (
+                  <div key={chapter.id} className="bg-card">
+                    {/* 章タイトル行（BookTreeView準拠のスタイル） */}
+                    <div
+                      onClick={() => setExpandedChapters(prev => ({ ...prev, [chapter.id]: !isExpanded }))}
+                      className="flex shrink flex-no-wrap items-center justify-between p-3.5 bg-muted/40 hover:bg-muted/50 cursor-pointer select-none transition-colors duration-300 ease-in-out gap-2"
+                    >
+                      <div className="flex flex-1 min-w-0 shrink items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedChapters(prev => ({ ...prev, [chapter.id]: !isExpanded }))}
+                          className="text-muted-foreground transition-transform duration-300 ease-in-out cursor-pointer"
+                        >
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform duration-300 ease-in-out ${isExpanded ? 'rotate-0' : '-rotate-90'
+                              }`}
+                          />
+                        </button>
+
+                        <input
+                          type="text"
+                          value={chapter.title}
+                          onChange={(e) => handleUpdateChapterTitle(chapter.id, e.target.value)}
+                          placeholder="章のタイトル"
+                          className="px-2.5 py-1 shrink min-w-0 bg-secondary/80 border-border border rounded text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+
+                      {/* 右: 通常問題数一括調整 & 削除 */}
+                      <div className="flex items-center gap-2.5 font-mono text-[11px]" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5 bg-background px-2.5 py-1 rounded border border-border">
+                          <span className="text-[10px] text-muted-foreground">REGULAR:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={300}
+                            value={regularQuestionsCount}
+                            onChange={(e) => handleSetRegularCount(chapter.id, parseInt(e.target.value) || 0)}
+                            className="text-right font-bold text-foreground bg-transparent focus:outline-none"
+                          />
+                          <span className="text-[10px] text-muted-foreground">Qs</span>
+                        </div>
+
+                        <div className="text-[10px] text-muted-foreground hidden sm:block">
+                          (EXCEPTION: <span className="text-(--tag-level-2) font-bold">{exceptionalQuestionsCount}</span> / TOTAL: <span className="text-foreground font-bold">{regularQuestionsCount + exceptionalQuestionsCount}</span>)
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveChapter(chapter.id)}
+                          className="p-1 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer"
+                          title="章を削除"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 章の目次マトリクス表示（BookTreeViewと同じgrid-template-rowsによる展開アニメーション） */}
+                    <div
+                      className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+                      style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="border-t border-border/60 bg-muted/20 p-3 sm:p-4">
+                          {/* モバイル(sm以下)では単一の行(1列: flex-col)、md以上では複数列(flex-rowで横並び) */}
+                          <div className="flex flex-col md:flex-row md:items-stretch md:min-w-max md:justify-between gap-0">
+                            {columns.map((col, colIdx) => (
+                              <React.Fragment key={colIdx}>
+                                {/* PCでの区画間の縦区切り線 */}
+                                {colIdx > 0 && (
+                                  <div className="hidden md:flex items-center justify-center px-2 select-none">
+                                    <div className="w-px h-[90%] bg-border/40" />
+                                  </div>
+                                )}
+
+                                {/* 区画コンテナ: モバイルではw-full、PCでは均等幅 */}
+                                <div className="w-full md:w-44 flex flex-col justify-between py-0 md:py-1 shrink-0">
+                                  <div className="flex flex-col w-full justify-center">
+                                    <div className="flex flex-col w-full justify-center">
+                                      {[
+                                        (colIdx === 0
+                                          ? (<div className="">
+                                            <TocItemDivider
+                                              onClick={() => handleOpenInsertModal(chapter.id, 0)}
+                                              label="ここに追加"
+                                            />
+                                          </div>
+                                          )
+                                          : (<div className="h-7 -my-2 hidden md:block" />)),
+                                        ...col.items.map((item, itemIdx) => {
+                                          const globalIndex = col.startIndex + itemIdx;
+                                          const isSection = item.kind === 'section';
+                                          const isExceptional = item.kind === 'exceptional';
+
+                                          return (
+
+                                            <div key={item.id} className="w-full">
+                                              {/* 題名的要素（目次アイテム）: 囲うボーダーを設けず、同じようなサイズ感で配置 */}
+                                              <div className="group relative flex items-center justify-between w-full h-8 px-1.5 select-none hover:bg-muted/40 rounded transition-colors">
+                                                {/* 要素のラベル/タイトル */}
+                                                <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-1">
+                                                  {isSection ? (
+                                                    /* 節題: 若干目立つスタイル、クリックでインライン名変更可能 */
+                                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                      <Bookmark className="w-3.5 h-3.5 text-primary shrink-0" />
+                                                      {editingItemId === item.id ? (
+                                                        <input
+                                                          autoFocus
+                                                          type="text"
+                                                          value={item.title}
+                                                          onChange={(e) => handleUpdateItemTitle(chapter.id, item.id, e.target.value)}
+                                                          onBlur={() => setEditingItemId(null)}
+                                                          onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') setEditingItemId(null);
+                                                          }}
+                                                          className="w-full px-1.5 py-0.5 bg-secondary text-foreground text-xs font-bold border border-primary/50 rounded-xs focus:outline-none"
+                                                        />
+                                                      ) : (
+                                                        <span
+                                                          onClick={() => setEditingItemId(item.id)}
+                                                          className="font-bold text-xs text-foreground tracking-tight truncate cursor-pointer hover:text-primary transition-colors"
+                                                          title="クリックして節題名を編集"
+                                                        >
+                                                          {item.title || '節'}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  ) : (
+                                                    /* 例題（通常 or 例外）: 同じサイズ感 */
+                                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                      <span
+                                                        className={`w-1 h-3 rounded-2xs shrink-0 ${isExceptional ? 'bg-(--tag-level-2)' : 'bg-muted-foreground/40'
+                                                          }`}
+                                                      />
+                                                      <span
+                                                        className={`text-[11px] font-mono truncate ${isExceptional
+                                                          ? 'text-(--tag-level-2) font-semibold'
+                                                          : 'text-foreground/90 font-medium'
+                                                          }`}
+                                                      >
+                                                        {item.questionType === "named" ? item.title : `${item.prefix}${item.number}`}
+                                                      </span>
+                                                    </div>
+                                                  )}
+                                                </div>
+
+                                                {/* 削除ボタン（例外例題および余分な節題のみ表示。通常例題は削除不可） */}
+                                                {(isExceptional || isSection) && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteItem(chapter.id, item.id)}
+                                                    title={isSection ? '節題を削除' : '例外例題を削除'}
+                                                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-coarse:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded cursor-pointer transition-opacity"
+                                                  >
+                                                    <X className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+
+                                              {/* 題名的要素の下の細い直線の区切り（ホバーで明るくなりクリックで追加） */}
+                                              <TocItemDivider
+                                                onClick={() => handleOpenInsertModal(chapter.id, globalIndex + 1)}
+                                                label="ここに追加"
+                                              />
+                                            </div>
+                                          );
+                                        })
+                                      ]}
+
+                                      {/* PCのみ: 高さを揃えるための透明スロット（モバイルでは不要） */}
+                                      <div className="hidden md:block">
+                                        {Array.from({ length: Math.max(0, STACK_SIZE - col.items.length) }).map((_, emptyIdx) => (
+                                          <div key={`empty_${emptyIdx}`} className="h-8 w-full pointer-events-none select-none opacity-0" />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* モーダルフッター */}
+        <div className="px-4 sm:px-5 py-3 border-t border-border bg-muted/40 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 text-[11px] font-mono text-muted-foreground">
+            <div>
+              TOTAL: <br className="block md:hidden" /><span className="font-bold text-foreground">{totalStats.totalCount}</span> Qs
+            </div>
+            <div>
+              CYCLING TARGET: <br className="block md:hidden" /><span className="font-bold text-(--tag-level-1)">{totalStats.cyclingQuestionsCount}</span> Qs
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-3.5 py-1.5 text-xs font-mono rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-secondary transition-all cursor-pointer"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-4 py-1.5 text-xs font-mono font-bold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-2xs"
+            >
+              SAVE
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 例外例題・節題の追加モーダル（ExceptionとSectionで高さとボタン位置が不変） */}
+      {insertModalState && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-100">
+          <div className="bg-card border border-border rounded-lg shadow-2xl p-4 w-full max-w-sm text-xs h-60 flex flex-col justify-between">
+            {/* 上部: ヘッダー & タブ */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-border/80 pb-2">
+                <span className="font-mono font-bold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span>INSERT ITEM</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setInsertModalState(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* 種類選択タブ（例外例題 or 節題） */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-secondary rounded text-center font-mono text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setInsertForm({ ...insertForm, kind: 'exceptional' })}
+                  className={`py-1 rounded cursor-pointer transition-all ${insertForm.kind === 'exceptional'
+                    ? 'bg-card text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  Exception
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInsertForm({ ...insertForm, kind: 'section' })}
+                  className={`py-1 rounded cursor-pointer transition-all ${insertForm.kind === 'section'
+                    ? 'bg-card text-foreground font-bold shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  Section
+                </button>
+              </div>
+            </div>
+
+            {/* 中央コンテンツ領域（固定高によりタブ切り替えでもモーダル全体の高さ・ボタン位置が不変） */}
+            <div className="h-20 flex flex-col justify-center">
+              {insertForm.kind === 'exceptional' ? (
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">
+                        PREFIX
+                      </label>
+                      <select
+                        value={insertForm.prefix}
+                        onChange={(e) => setInsertForm({ ...insertForm, prefix: e.target.value })}
+                        className="w-full h-8 px-2.5 py-1.5 bg-secondary border border-border rounded text-xs font-mono text-foreground focus:outline-none"
+                      >
+                        {exceptionalConfigs.map(c => (
+                          <option key={c.prefix} value={c.prefix}>
+                            {c.prefix}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">
+                        TARGET TIME
+                      </label>
+                      <div className="flex items-center h-8 gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={120}
+                          value={insertForm.targetMinutes}
+                          onChange={(e) => setInsertForm({ ...insertForm, targetMinutes: parseInt(e.target.value) || defaultTargetMinutes })}
+                          className="w-full px-2 py-1.5 bg-secondary border border-border rounded text-xs font-mono text-foreground text-right focus:outline-none"
+                        />
+                        <span className="text-[10px] font-mono text-muted-foreground">MIN</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">
+                      SECTION TITLE
+                    </label>
+                    <input
+                      type="text"
+                      value={insertForm.title}
+                      onChange={(e) => setInsertForm({ ...insertForm, title: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-secondary border border-border rounded text-xs font-medium text-foreground focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* モーダルボタン（フッター固定） */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/80">
+              <button
+                type="button"
+                onClick={() => setInsertModalState(null)}
+                className="px-3.5 py-1 text-xs font-mono rounded border border-border text-muted-foreground hover:bg-secondary cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmInsert}
+                className="px-3.5 py-1 text-xs font-mono font-bold rounded bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-2xs"
+              >
+                INSERT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 題名的要素の下に配置する細い直線の区切り（触れ合わないマージンを確保し、ホバーで明るく発色）
+function TocItemDivider({
+  onClick,
+  label
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      title={label}
+      className="group relative flex items-center justify-center w-full h-10 md:h-7 -my-2 cursor-pointer select-none z-10"
+    >
+      {/* 題名的要素の下の細い直線 */}
+      <div className="w-[calc(100%-1.5rem)] h-0 transition-colors border-[0.5px] border-border group-hover:border-(--accent-border)/40! duration-150 flex items-center justify-center relative">
+      </div>
+    </div>
+  );
+}

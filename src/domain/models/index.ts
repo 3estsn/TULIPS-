@@ -57,6 +57,8 @@ export interface MaterialStructure {
   itemTypeDefault?: MaterialItemType; // デフォルト項目種別
   prefixDefault?: string;             // デフォルト接頭辞 (例: "例題", "問", "Step")
   suffixDefault?: string;             // デフォルト接尾辞 (例: "番", "")
+  pageStart?: number;                 // 教材全体の開始ページ
+  pageEnd?: number;                   // 教材全体の終了ページ
   chapters: MaterialChapter[];
 }
 

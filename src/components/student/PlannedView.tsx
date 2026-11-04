@@ -80,6 +80,10 @@ export const PlannedView: React.FC = () => {
   const [rangeStartNum, setRangeStartNum] = useState<number>(1);
   const [rangeEndNum, setRangeEndNum] = useState<number>(20);
 
+  // 開始ページ・終了ページの選択だけでも範囲を指定できるステート
+  const [pageRangeStart, setPageRangeStart] = useState<string>('1');
+  const [pageRangeEnd, setPageRangeEnd] = useState<string>('20');
+
   // 教科に応じた教材一覧
   const filteredMaterials = useMemo(() => {
     return materials.filter((m) => m.subjectId === selectedSubjectId);
@@ -249,13 +253,77 @@ export const PlannedView: React.FC = () => {
     });
   };
 
+  // 開始ページと終了ページの選択だけでも範囲を指定して選択
+  const handleSelectByPageRangeDirect = () => {
+    const startP = Number(pageRangeStart);
+    const endP = Number(pageRangeEnd);
+    if (isNaN(startP) || isNaN(endP) || startP > endP) return;
+
+    const newSelected: Record<string, StudentTaskItem> = { ...selectedItemsMap };
+    let matchedAny = false;
+
+    // 既存の構造化アイテムに該当ページがあれば選択
+    const chapters = Array.isArray(activeMaterial?.structure?.chapters) ? activeMaterial.structure.chapters : [];
+    for (const ch of chapters) {
+      for (const sec of ch.sections || []) {
+        for (const it of sec.items || []) {
+          if (it.page !== undefined && it.page >= startP && it.page <= endP) {
+            matchedAny = true;
+            newSelected[it.id] = {
+              id: `task-item-${Date.now()}-${it.id}`,
+              materialItemId: it.id,
+              label: it.label,
+              chapterTitle: ch.title,
+              sectionTitle: sec.title,
+              page: it.page,
+              isCompleted: false,
+            };
+          }
+        }
+      }
+    }
+
+    // 既存構造に該当が無い、または未構造化教材の場合は直接ページアイテムを生成
+    if (!matchedAny) {
+      for (let p = startP; p <= endP; p++) {
+        const autoId = `page-gen-${p}`;
+        newSelected[autoId] = {
+          id: `task-item-${Date.now()}-${p}`,
+          label: `p.${p}`,
+          chapterTitle: `p.${startP}〜p.${endP}`,
+          page: p,
+          isCompleted: false,
+        };
+      }
+    }
+
+    setSelectedItemsMap(newSelected);
+  };
+
   // 新規タスク保存
   const handleSaveNewTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const items = Object.values(selectedItemsMap);
+    let items = Object.values(selectedItemsMap);
+
+    // 明示的にアイテムを選択していない場合でも、開始ページと終了ページから自動生成
     if (items.length === 0) {
-      alert('タスクの対象となる例題やページを1つ以上選択してください。');
-      return;
+      const startP = Number(pageRangeStart);
+      const endP = Number(pageRangeEnd);
+      if (!isNaN(startP) && !isNaN(endP) && startP <= endP) {
+        items = [];
+        for (let p = startP; p <= endP; p++) {
+          items.push({
+            id: `task-item-${Date.now()}-${p}`,
+            label: `p.${p}`,
+            chapterTitle: `p.${startP}〜p.${endP}`,
+            page: p,
+            isCompleted: false,
+          });
+        }
+      } else {
+        alert('タスクの対象となる例題やページ番号（開始ページ〜終了ページ）を入力または選択してください。');
+        return;
+      }
     }
 
     try {
@@ -547,27 +615,90 @@ export const PlannedView: React.FC = () => {
               <div>
                 <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
                   <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-                  <span>『{activeMaterial?.name}』の章・節・例題一覧</span>
+                  <span>『{activeMaterial?.name}』の学習範囲設定</span>
                 </span>
                 <span className="text-[11px] text-zinc-500 ml-1">
-                  （やるべき範囲にチェックを入れてください）
+                  （開始・終了ページの選択だけでも範囲を指定できます）
                 </span>
               </div>
 
-              <div className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-                選択中: {Object.keys(selectedItemsMap).length} 項目
+              <div className="flex items-center space-x-2">
+                {Object.keys(selectedItemsMap).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItemsMap({})}
+                    className="text-[11px] text-zinc-400 hover:text-rose-500 cursor-pointer"
+                  >
+                    選択解除
+                  </button>
+                )}
+                <div className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+                  選択中: {Object.keys(selectedItemsMap).length} 項目
+                </div>
               </div>
             </div>
 
-            {!activeMaterial?.structure ||
-            !activeMaterial.structure.chapters ||
-            activeMaterial.structure.chapters.length === 0 ? (
-              <div className="p-4 text-center text-xs text-zinc-400 border border-dashed rounded-lg">
-                この教材にはまだ章節・連番が登録されていません。先生画面の「参考書・問題集の構造マスター管理」から登録できます。
+            {/* 開始ページ・終了ページの選択だけで範囲を指定できるクイック設定バー */}
+            <div className="p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center space-x-1">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>開始ページ〜終了ページで指定:</span>
+              </span>
+
+              <div className="flex items-center space-x-1">
+                <span className="text-zinc-500 text-[11px]">開始p:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={pageRangeStart}
+                  onChange={(e) => setPageRangeStart(e.target.value)}
+                  className="w-16 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-zinc-800 text-xs font-bold text-center"
+                />
+                <span className="text-zinc-400">〜</span>
+                <span className="text-zinc-500 text-[11px]">終了p:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={pageRangeEnd}
+                  onChange={(e) => setPageRangeEnd(e.target.value)}
+                  className="w-16 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-zinc-800 text-xs font-bold text-center"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSelectByPageRangeDirect}
+                className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
+              >
+                このページ範囲を選択
+              </button>
+
+              <span className="text-[10px] text-emerald-800/70 dark:text-emerald-300/70 ml-auto">
+                ※未構造化教材でも即座にタスク化できます
+              </span>
+            </div>
+
+            {(!activeMaterial?.structure ||
+              !Array.isArray(activeMaterial.structure.chapters) ||
+              activeMaterial.structure.chapters.length === 0) ? (
+              <div className="p-4 text-center text-xs text-zinc-600 dark:text-zinc-300 border border-dashed border-emerald-300 dark:border-emerald-700 rounded-lg space-y-2 bg-emerald-50/30 dark:bg-emerald-950/20">
+                <div className="font-semibold text-emerald-900 dark:text-emerald-200">
+                  章構成が未登録の教材です
+                </div>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+                  上の「開始ページ〜終了ページ」でやるべき範囲（例: p.{pageRangeStart}〜p.{pageRangeEnd}）を指定して「このページ範囲を選択」を押せば、すぐに日割り学習計画を作成できます！
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSelectByPageRangeDirect}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs"
+                >
+                  p.{pageRangeStart}〜p.{pageRangeEnd}（計 {Math.max(1, Number(pageRangeEnd) - Number(pageRangeStart) + 1)}ページ）をタスク範囲にする
+                </button>
               </div>
             ) : (
               <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                {activeMaterial.structure.chapters.map((ch) => {
+                {(activeMaterial.structure.chapters || []).map((ch) => {
                   const isExp = !!expandedChapters[ch.id];
                   return (
                     <div

@@ -95,20 +95,41 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
   const [addingSectionForChapterId, setAddingSectionForChapterId] = useState<string | null>(null);
   const [newSectionTitle, setNewSectionTitle] = useState<string>('');
 
+  // 教材全体のページ範囲設定ステート
+  const [materialPageStartInput, setMaterialPageStartInput] = useState<string>('');
+  const [materialPageEndInput, setMaterialPageEndInput] = useState<string>('');
+
   // 教材選択切り替え時、編集状態を同期
   React.useEffect(() => {
     if (selectedMaterial) {
-      const initialStruct: MaterialStructure = selectedMaterial.structure || {
-        itemTypeDefault: 'numbered',
-        prefixDefault: '例題 ',
-        chapters: [],
+      const raw = selectedMaterial.structure;
+      const initialStruct: MaterialStructure = {
+        itemTypeDefault: raw?.itemTypeDefault || 'numbered',
+        prefixDefault: raw?.prefixDefault || '例題 ',
+        suffixDefault: raw?.suffixDefault || '',
+        pageStart: raw?.pageStart,
+        pageEnd: raw?.pageEnd,
+        chapters: Array.isArray(raw?.chapters)
+          ? raw.chapters.map((ch, idx) => ({
+              ...ch,
+              chapterNumber: ch.chapterNumber ?? idx + 1,
+              sections: Array.isArray(ch.sections)
+                ? ch.sections.map((sec) => ({
+                    ...sec,
+                    items: Array.isArray(sec.items) ? sec.items : [],
+                  }))
+                : [],
+            }))
+          : [],
       };
       setEditingStructure(JSON.parse(JSON.stringify(initialStruct)));
+      setMaterialPageStartInput(raw?.pageStart ? String(raw.pageStart) : '');
+      setMaterialPageEndInput(raw?.pageEnd ? String(raw.pageEnd) : '');
       setHasUnsavedChanges(false);
 
       // 初期展開: 全ての章を展開
       const expands: Record<string, boolean> = {};
-      (initialStruct.chapters || []).forEach((c) => {
+      initialStruct.chapters.forEach((c) => {
         expands[c.id] = true;
       });
       setExpandedChapters(expands);
@@ -227,10 +248,106 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
     setIsAddingChapter(false);
   };
 
+  // ページ範囲の保存・更新
+  const handleUpdateMaterialPageRange = (startPStr: string, endPStr: string) => {
+    if (!editingStructure) return;
+    const startP = startPStr ? Number(startPStr) : undefined;
+    const endP = endPStr ? Number(endPStr) : undefined;
+    setEditingStructure({
+      ...editingStructure,
+      pageStart: startP,
+      pageEnd: endP,
+    });
+    setMaterialPageStartInput(startPStr);
+    setMaterialPageEndInput(endPStr);
+    setHasUnsavedChanges(true);
+  };
+
+  // 開始ページ・終了ページから章・節・ページアイテムを1クリック自動生成
+  const handleAutoGenerateFromPageRange = (startP: number, endP: number) => {
+    if (!editingStructure || !startP || !endP || startP > endP) return;
+
+    const totalPages = endP - startP + 1;
+    const newChapters: MaterialChapter[] = [];
+
+    if (totalPages > 30) {
+      // 20ページ単位で章を分割
+      const chunkSize = 20;
+      let cur = startP;
+      let chNum = 1;
+      while (cur <= endP) {
+        const chunkEnd = Math.min(endP, cur + chunkSize - 1);
+        const items: MaterialUnitItem[] = [];
+        for (let p = cur; p <= chunkEnd; p++) {
+          items.push({
+            id: `p-${Date.now()}-${p}-${Math.random().toString(36).substring(2, 5)}`,
+            type: 'page',
+            label: `p.${p}`,
+            page: p,
+          });
+        }
+        newChapters.push({
+          id: `ch-auto-${Date.now()}-${chNum}`,
+          chapterNumber: chNum,
+          title: `第${chNum}章 (p.${cur}〜p.${chunkEnd})`,
+          pageStart: cur,
+          pageEnd: chunkEnd,
+          sections: [
+            {
+              id: `sec-auto-${Date.now()}-${chNum}`,
+              title: `p.${cur}〜p.${chunkEnd}`,
+              items,
+            },
+          ],
+        });
+        cur = chunkEnd + 1;
+        chNum++;
+      }
+    } else {
+      // 全ページを1つの章に生成
+      const items: MaterialUnitItem[] = [];
+      for (let p = startP; p <= endP; p++) {
+        items.push({
+          id: `p-${Date.now()}-${p}-${Math.random().toString(36).substring(2, 5)}`,
+          type: 'page',
+          label: `p.${p}`,
+          page: p,
+        });
+      }
+      newChapters.push({
+        id: `ch-auto-${Date.now()}-1`,
+        chapterNumber: 1,
+        title: `全ページ範囲 (p.${startP}〜p.${endP})`,
+        pageStart: startP,
+        pageEnd: endP,
+        sections: [
+          {
+            id: `sec-auto-${Date.now()}-1`,
+            title: `全項目`,
+            items,
+          },
+        ],
+      });
+    }
+
+    setEditingStructure({
+      ...editingStructure,
+      pageStart: startP,
+      pageEnd: endP,
+      chapters: newChapters,
+    });
+    setHasUnsavedChanges(true);
+    const expands: Record<string, boolean> = {};
+    newChapters.forEach((c) => {
+      expands[c.id] = true;
+    });
+    setExpandedChapters(expands);
+  };
+
   // 章の削除
   const handleDeleteChapter = (chapterId: string) => {
     if (!editingStructure) return;
-    const updatedChapters = editingStructure.chapters.filter((c) => c.id !== chapterId);
+    const updatedChapters = (editingStructure.chapters || []).filter((c) => c.id !== chapterId);
     setEditingStructure({
       ...editingStructure,
       chapters: updatedChapters,
@@ -241,7 +358,7 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
   // 節の追加
   const handleAddSection = (chapterId: string) => {
     if (!newSectionTitle.trim() || !editingStructure) return;
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         const newSec: MaterialSection = {
           id: `sec-${Date.now()}`,
@@ -250,7 +367,7 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
         };
         return {
           ...ch,
-          sections: [...ch.sections, newSec],
+          sections: [...(ch.sections || []), newSec],
         };
       }
       return ch;
@@ -268,11 +385,11 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
   // 節の削除
   const handleDeleteSection = (chapterId: string, sectionId: string) => {
     if (!editingStructure) return;
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         return {
           ...ch,
-          sections: ch.sections.filter((s) => s.id !== sectionId),
+          sections: (ch.sections || []).filter((s) => s.id !== sectionId),
         };
       }
       return ch;
@@ -308,15 +425,15 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
       });
     }
 
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         return {
           ...ch,
-          sections: ch.sections.map((sec) => {
+          sections: (ch.sections || []).map((sec) => {
             if (sec.id === sectionId) {
               return {
                 ...sec,
-                items: [...sec.items, ...generated],
+                items: [...(sec.items || []), ...generated],
               };
             }
             return sec;
@@ -350,15 +467,15 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
       });
     }
 
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         return {
           ...ch,
-          sections: ch.sections.map((sec) => {
+          sections: (ch.sections || []).map((sec) => {
             if (sec.id === sectionId) {
               return {
                 ...sec,
-                items: [...sec.items, ...generated],
+                items: [...(sec.items || []), ...generated],
               };
             }
             return sec;
@@ -385,15 +502,15 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
       label: singleItemLabel.trim(),
     };
 
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         return {
           ...ch,
-          sections: ch.sections.map((sec) => {
+          sections: (ch.sections || []).map((sec) => {
             if (sec.id === sectionId) {
               return {
                 ...sec,
-                items: [...sec.items, newItem],
+                items: [...(sec.items || []), newItem],
               };
             }
             return sec;
@@ -414,15 +531,15 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
   // 個別アイテムの削除
   const handleDeleteItem = (chapterId: string, sectionId: string, itemId: string) => {
     if (!editingStructure) return;
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         return {
           ...ch,
-          sections: ch.sections.map((sec) => {
+          sections: (ch.sections || []).map((sec) => {
             if (sec.id === sectionId) {
               return {
                 ...sec,
-                items: sec.items.filter((it) => it.id !== itemId),
+                items: (sec.items || []).filter((it) => it.id !== itemId),
               };
             }
             return sec;
@@ -442,11 +559,11 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
   // セクション内全アイテムのクリア
   const handleClearSectionItems = (chapterId: string, sectionId: string) => {
     if (!editingStructure) return;
-    const updatedChapters = editingStructure.chapters.map((ch) => {
+    const updatedChapters = (editingStructure.chapters || []).map((ch) => {
       if (ch.id === chapterId) {
         return {
           ...ch,
-          sections: ch.sections.map((sec) => {
+          sections: (ch.sections || []).map((sec) => {
             if (sec.id === sectionId) {
               return {
                 ...sec,
@@ -467,15 +584,17 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
-  // 集計値の計算
-  const totalChaptersCount = editingStructure?.chapters?.length || 0;
-  const totalSectionsCount =
-    editingStructure?.chapters?.reduce((acc, c) => acc + c.sections.length, 0) || 0;
-  const totalItemsCount =
-    editingStructure?.chapters?.reduce(
-      (acc, c) => acc + c.sections.reduce((sAcc, s) => sAcc + s.items.length, 0),
-      0
-    ) || 0;
+  // 集計値の計算（安全なフォールバック付き）
+  const safeChapters = Array.isArray(editingStructure?.chapters) ? editingStructure.chapters : [];
+  const totalChaptersCount = safeChapters.length;
+  const totalSectionsCount = safeChapters.reduce(
+    (acc, c) => acc + (c.sections || []).length,
+    0
+  );
+  const totalItemsCount = safeChapters.reduce(
+    (acc, c) => acc + (c.sections || []).reduce((sAcc, s) => sAcc + (s.items || []).length, 0),
+    0
+  );
 
   return (
     <div className="space-y-4">
@@ -684,12 +803,14 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
               const isSelected = m.id === selectedMaterial?.id;
               const sub = subjects.find((s) => s.id === m.subjectId);
               const struct = m.structure;
-              const chCount = struct?.chapters?.length || 0;
-              const itemsCount =
-                struct?.chapters?.reduce(
-                  (acc, c) => acc + c.sections.reduce((sAcc, s) => sAcc + s.items.length, 0),
-                  0
-                ) || 0;
+              const chCount = Array.isArray(struct?.chapters) ? struct.chapters.length : 0;
+              const itemsCount = Array.isArray(struct?.chapters)
+                ? struct.chapters.reduce(
+                    (acc, c) => acc + (c.sections || []).reduce((sAcc, s) => sAcc + (s.items || []).length, 0),
+                    0
+                  )
+                : 0;
+              const hasPageRange = struct?.pageStart && struct?.pageEnd;
 
               return (
                 <div
@@ -766,7 +887,72 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-colors cursor-pointer"
                   >
                     <FolderPlus className="w-3.5 h-3.5 text-blue-500" />
-                    <span>章を追加</span>
+                    <span>章を手動追加</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 教材全体の基本ページ範囲（開始ページ 〜 終了ページ）設定＆クイック一括生成バー */}
+              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-750 space-y-2 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div className="flex items-center space-x-2">
+                    <BookOpen className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                      教材のページ範囲（開始ページ 〜 終了ページ）
+                    </span>
+                    {(editingStructure.pageStart || editingStructure.pageEnd) && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        p.{editingStructure.pageStart || 1} 〜 p.{editingStructure.pageEnd || '?'}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-zinc-400">
+                    開始・終了ページを指定すると、課題配信や計画作成で即座にページ範囲選択が可能になります
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-zinc-500 text-[11px]">開始:</span>
+                    <input
+                      type="number"
+                      placeholder="例: 1"
+                      value={materialPageStartInput}
+                      onChange={(e) => setMaterialPageStartInput(e.target.value)}
+                      className="w-16 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold text-center"
+                    />
+                    <span className="text-zinc-400">〜</span>
+                    <span className="text-zinc-500 text-[11px]">終了:</span>
+                    <input
+                      type="number"
+                      placeholder="例: 150"
+                      value={materialPageEndInput}
+                      onChange={(e) => setMaterialPageEndInput(e.target.value)}
+                      className="w-16 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold text-center"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateMaterialPageRange(materialPageStartInput, materialPageEndInput)}
+                    className="px-2.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer transition-colors"
+                  >
+                    ページ範囲を登録
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const s = Number(materialPageStartInput) || 1;
+                      const e = Number(materialPageEndInput) || 30;
+                      if (s <= e) {
+                        handleAutoGenerateFromPageRange(s, e);
+                      }
+                    }}
+                    className="inline-flex items-center space-x-1 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs ml-auto"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>このページ範囲から構造を1クリック自動生成</span>
                   </button>
                 </div>
               </div>
@@ -826,19 +1012,44 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
               )}
 
               {/* 章・節・アイテム階層ツリー */}
-              {editingStructure.chapters.length === 0 ? (
-                <div className="text-center py-10 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
-                  <Layers className="w-8 h-8 text-zinc-400 mx-auto" />
-                  <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                    まだ章が登録されていません
+              {safeChapters.length === 0 ? (
+                <div className="p-6 border border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl space-y-4 text-center bg-zinc-50/50 dark:bg-zinc-850/30">
+                  <Layers className="w-10 h-10 text-zinc-400 mx-auto" />
+                  <div className="space-y-1">
+                    <div className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                      まだ章・アイテムが登録されていません
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+                      開始ページと終了ページを指定して1クリックで自動生成するか、「章を手動追加」から細かな構成を作成できます。
+                    </p>
                   </div>
-                  <p className="text-[11px] text-zinc-400 max-w-sm mx-auto">
-                    「章を追加」ボタンから第1章を追加し、節や連番アイテム（例題1〜20等）を登録してください。
-                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const s = Number(materialPageStartInput) || 1;
+                        const e = Number(materialPageEndInput) || 50;
+                        handleAutoGenerateFromPageRange(s, e);
+                      }}
+                      className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-xs transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>ページ範囲から1クリック自動生成</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingChapter(true)}
+                      className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-xs font-bold text-zinc-700 dark:text-zinc-200 cursor-pointer transition-colors"
+                    >
+                      <FolderPlus className="w-4 h-4 text-blue-500" />
+                      <span>章を手動で追加</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {editingStructure.chapters.map((ch, chIdx) => {
+                  {safeChapters.map((ch, chIdx) => {
                     const isExpanded = !!expandedChapters[ch.id];
                     return (
                       <div
@@ -916,12 +1127,12 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
                         {/* 章の本体（節一覧） */}
                         {isExpanded && (
                           <div className="p-3 space-y-3">
-                            {ch.sections.length === 0 ? (
+                            {(ch.sections || []).length === 0 ? (
                               <div className="text-center py-4 text-xs text-zinc-400">
                                 節がありません。「＋ 節を追加」から節を登録してください。
                               </div>
                             ) : (
-                              ch.sections.map((sec) => {
+                              (ch.sections || []).map((sec) => {
                                 const isGeneratorActive =
                                   activeGeneratorSection?.chapterId === ch.id &&
                                   activeGeneratorSection?.sectionId === sec.id;
@@ -939,7 +1150,7 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
                                           {sec.title}
                                         </h3>
                                         <span className="text-[10px] text-zinc-400 font-normal">
-                                          ({sec.items.length} 項目)
+                                          ({(sec.items || []).length} 項目)
                                         </span>
                                       </div>
 
@@ -959,7 +1170,7 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
                                           <span>連番・ページ一括生成</span>
                                         </button>
 
-                                        {sec.items.length > 0 && (
+                                        {(sec.items || []).length > 0 && (
                                           <button
                                             type="button"
                                             onClick={() => handleClearSectionItems(ch.id, sec.id)}
@@ -1107,13 +1318,13 @@ export const TeacherMaterialStructureEditor: React.FC = () => {
                                     )}
 
                                     {/* アイテム一覧チップス */}
-                                    {sec.items.length === 0 ? (
+                                    {(sec.items || []).length === 0 ? (
                                       <div className="py-2 text-[11px] text-zinc-400 italic">
                                         まだ項目がありません。上の「連番・ページ一括生成」から生成してください。
                                       </div>
                                     ) : (
                                       <div className="flex flex-wrap gap-1.5 pt-1 max-h-48 overflow-y-auto pr-1">
-                                        {sec.items.map((it) => (
+                                        {(sec.items || []).map((it) => (
                                           <div
                                             key={it.id}
                                             className="group inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700"
