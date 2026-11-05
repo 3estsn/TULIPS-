@@ -129,7 +129,7 @@ export const StatisticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 要件指定：平均学習時間（累計・今年度・今月・今日） */}
+      {/* 要件指定：平均学習時間（今月・今年度・累計） */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 sm:p-5 shadow-xs">
         <div className="flex items-center space-x-2 mb-3">
           <TrendingUp className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
@@ -138,16 +138,7 @@ export const StatisticsView: React.FC = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 今日 */}
-          <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
-            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今日</span>
-            <div className="text-xl sm:text-2xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-1.5">
-              {formatMinutes(stats?.today?.averageMinutesPerDay || 0)}
-            </div>
-            <span className="text-[11px] text-zinc-400 mt-1 block">今日の学習実績</span>
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* 今月 */}
           <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">今月平均</span>

@@ -89,9 +89,9 @@ export class ConoHaStudyRecordRepository implements IStudyRecordRepository {
       });
       if (res.ok) {
         const created = await res.json();
-        // ローカル側にもキャッシュ同期
+        // ローカル側にも同じIDでキャッシュ同期
         try {
-          await this.fallback.addRecord(record);
+          await this.fallback.addRecord(created);
         } catch {}
         return created;
       }

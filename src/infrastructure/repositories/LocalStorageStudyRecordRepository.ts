@@ -62,11 +62,20 @@ export class LocalStorageStudyRecordRepository implements IStudyRecordRepository
     return [...this.records];
   }
 
-  async addRecord(record: Omit<StudyRecord, 'id' | 'createdAt'>): Promise<StudyRecord> {
+  async addRecord(record: Omit<StudyRecord, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): Promise<StudyRecord> {
+    const recordId = record.id || `record-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const createdAt = record.createdAt || new Date().toISOString();
+    
+    // 既存の同一IDがあれば重複挿入を回避
+    const existingIdx = this.records.findIndex((r) => r.id === recordId);
+    if (existingIdx !== -1) {
+      return this.records[existingIdx];
+    }
+
     const newRecord: StudyRecord = {
       ...record,
-      id: `record-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      createdAt: new Date().toISOString(),
+      id: recordId,
+      createdAt,
     };
     this.records.unshift(newRecord);
     this.save();

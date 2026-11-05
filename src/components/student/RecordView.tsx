@@ -26,13 +26,23 @@ type InputMode = 'manual' | 'timer';
 type TimerType = 'countup' | 'countdown';
 
 export const RecordView: React.FC = () => {
-  const { currentUser, subjects, materials, accentColor, accentForeground, refreshData, setActiveTab } = useApp();
+  const {
+    currentUser,
+    subjects,
+    materials,
+    accentColor,
+    accentForeground,
+    refreshData,
+    lastRecordedSubjectId,
+    setLastRecordedSubjectId,
+    globalTimer,
+  } = useApp();
 
   // 入力モード（手動入力 / タイマー計測）
   const [inputMode, setInputMode] = useState<InputMode>('manual');
 
-  // 科目・教材選択状態
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('math');
+  // 科目・教材選択状態（最後に記録した教科を初期値に採用し、数学固定を防止）
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(() => lastRecordedSubjectId || 'math');
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>('');
   const [customMaterialName, setCustomMaterialName] = useState<string>('');
   const [isAddingNewMaterial, setIsAddingNewMaterial] = useState<boolean>(false);
@@ -44,15 +54,19 @@ export const RecordView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
 
-  // タイマー状態
-  const [timerType, setTimerType] = useState<TimerType>('countup');
-  const [timerSeconds, setTimerSeconds] = useState<number>(0);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [targetMinutes, setTargetMinutes] = useState<number>(25); // カウントダウン初期値: 25分
-  const [countdownRemaining, setCountdownRemaining] = useState<number>(25 * 60);
-  const [countdownFinished, setCountdownFinished] = useState<boolean>(false);
-
-  const timerRef = useRef<any>(null);
+  // グローバルタイマー状態の参照
+  const {
+    timerType,
+    setTimerType,
+    timerSeconds,
+    isRunning,
+    targetMinutes,
+    setTargetMinutes,
+    countdownRemaining,
+    countdownFinished,
+    toggleTimer,
+    resetTimer,
+  } = globalTimer;
 
   // 科目変更時に選択中教材を先頭にリセット
   useEffect(() => {
@@ -63,59 +77,6 @@ export const RecordView: React.FC = () => {
       setSelectedMaterialId('');
     }
   }, [selectedSubjectId, materials]);
-
-  // カウントダウン目標時間変更時
-  useEffect(() => {
-    if (!isRunning) {
-      setCountdownRemaining(targetMinutes * 60);
-      setCountdownFinished(false);
-    }
-  }, [targetMinutes, isRunning]);
-
-  // タイマー制御
-  useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        if (timerType === 'countup') {
-          setTimerSeconds((prev) => prev + 1);
-        } else {
-          setCountdownRemaining((prev) => {
-            if (prev <= 1) {
-              clearInterval(timerRef.current);
-              setIsRunning(false);
-              setCountdownFinished(true);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isRunning, timerType]);
-
-  const toggleTimer = () => {
-    setIsRunning(!isRunning);
-  };
-
-  const resetTimer = () => {
-    setIsRunning(false);
-    if (timerType === 'countup') {
-      setTimerSeconds(0);
-    } else {
-      setCountdownRemaining(targetMinutes * 60);
-      setCountdownFinished(false);
-    }
-  };
 
   // 新規教材追加処理
   const handleAddNewMaterial = async () => {
@@ -138,7 +99,7 @@ export const RecordView: React.FC = () => {
   // 手動記録送信
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting) return;
     if (durationMinutes <= 0) return;
 
     const chosenMaterial = materials.find((m) => m.id === selectedMaterialId);
@@ -146,6 +107,9 @@ export const RecordView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      // 最後に記録した教科を保存（次回以降数学固定にならないように）
+      setLastRecordedSubjectId(selectedSubjectId);
+
       await services.studyRecordRepository.addRecord({
         userId: currentUser.id,
         subjectId: selectedSubjectId,
@@ -169,7 +133,7 @@ export const RecordView: React.FC = () => {
 
   // タイマー計測結果を記録
   const handleSaveTimerRecord = async () => {
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting) return;
 
     let recordedMinutes = 0;
     let method: StudyMethod = 'timer_countup';
@@ -188,6 +152,9 @@ export const RecordView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      // 最後に記録した教科を保存
+      setLastRecordedSubjectId(selectedSubjectId);
+
       await services.studyRecordRepository.addRecord({
         userId: currentUser.id,
         subjectId: selectedSubjectId,

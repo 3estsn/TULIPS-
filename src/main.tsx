@@ -1,17 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { registerSW } from 'virtual:pwa-register';
+import { initPWAAutoUpdate } from './utils/pwaUpdate.ts';
 
-// Register Service Worker for offline capabilities
-registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    console.log('App update available');
-  },
-  onOfflineReady() {
-    console.log('App ready to work offline');
-  },
-});
+// Register Service Worker and enable automatic updates
+initPWAAutoUpdate();
 
 createRoot(document.getElementById('root')!).render(<App />);

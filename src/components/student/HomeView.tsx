@@ -21,6 +21,7 @@ import {
   Square,
   ArrowRight,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext.tsx';
 import { StudyRecord, Subject } from '../../domain/models/index.ts';
@@ -172,53 +173,36 @@ export const HomeView: React.FC = () => {
           </div>
         </div>
 
-        {/* 2: 1週間の目標学習時間 & 円グラフ進捗率 */}
-        <div className="col-span-2 sm:col-span-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 shadow-xs flex items-center justify-between">
-          <div className="flex-1 pr-2">
-            <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 text-xs font-semibold">
-              <span className="flex items-center space-x-1">
-                <Target className="w-3.5 h-3.5 text-rose-500" />
-                <span>週間目標</span>
+        {/* 2: 1週間の目標学習時間 & 円グラフ進捗率（カードタップで編集モーダルを開く、一行で表示） */}
+        <div
+          onClick={() => {
+            setGoalHoursInput(Math.round(weeklyGoalMinutes / 60));
+            setIsEditingGoal(true);
+          }}
+          className="col-span-2 sm:col-span-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 shadow-xs flex items-center justify-between cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-all select-none group"
+          title="タップして目標時間を編集"
+        >
+          <div className="flex-1 pr-2 min-w-0">
+            <div className="flex items-center space-x-1 text-zinc-500 dark:text-zinc-400 text-xs font-semibold whitespace-nowrap">
+              <Target className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>週間目標</span>
+              <span className="text-[10px] text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200 ml-1">
+                (タップで編集)
               </span>
-              {!isEditingGoal && (
-                <button
-                  onClick={() => setIsEditingGoal(true)}
-                  className="text-[10px] text-zinc-400 hover:text-zinc-600 underline"
-                  title="目標時間を設定"
-                >
-                  編集
-                </button>
-              )}
             </div>
 
-            {!isEditingGoal ? (
-              <div className="mt-1">
-                <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  {formatMinutes(weeklyGoalMinutes)}
-                </div>
-                <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  残り {formatMinutes(Math.max(0, weeklyGoalMinutes - thisWeekTotalMinutes))}
-                </div>
+            <div className="mt-1">
+              {/* 一行で目標時間と残り時間を表示 */}
+              <div className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap truncate">
+                <span>{formatMinutes(weeklyGoalMinutes)}</span>
+                <span className="text-xs font-normal text-zinc-400 ml-1.5">
+                  / 残り{formatMinutes(Math.max(0, weeklyGoalMinutes - thisWeekTotalMinutes))}
+                </span>
               </div>
-            ) : (
-              <div className="mt-1 flex items-center space-x-1">
-                <input
-                  type="number"
-                  min="1"
-                  max="80"
-                  value={goalHoursInput}
-                  onChange={(e) => setGoalHoursInput(Number(e.target.value))}
-                  className="w-14 px-1.5 py-0.5 border border-zinc-300 dark:border-zinc-700 rounded text-xs text-zinc-900 dark:text-zinc-100"
-                />
-                <span className="text-xs">時間</span>
-                <button
-                  onClick={handleSaveGoal}
-                  className="p-1 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-[10px]"
-                >
-                  <Check className="w-3 h-3" />
-                </button>
+              <div className="text-[10px] text-zinc-400 mt-0.5 whitespace-nowrap truncate">
+                週の目標時間
               </div>
-            )}
+            </div>
           </div>
 
           {/* 円グラフ（SVG ドーナツプログレス） */}
@@ -650,6 +634,89 @@ export const HomeView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 週間目標 編集専用モーダル（カードタップで表示） */}
+      {isEditingGoal && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+              <div className="flex items-center space-x-2">
+                <Target className="w-4 h-4 text-rose-500" />
+                <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                  週間目標の編集
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditingGoal(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  1週間の目標学習時間（時間）
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    autoFocus
+                    value={goalHoursInput}
+                    onChange={(e) => setGoalHoursInput(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-base font-bold text-center focus:outline-hidden"
+                  />
+                  <span className="text-sm font-semibold text-zinc-600 dark:text-zinc-400 shrink-0">
+                    時間 / 週
+                  </span>
+                </div>
+                <div className="text-[11px] text-zinc-400 mt-1.5">
+                  現在設定: {goalHoursInput} 時間（{goalHoursInput * 60} 分）
+                </div>
+              </div>
+
+              {/* クイック選択 */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {[10, 15, 20, 25, 30].map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setGoalHoursInput(h)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      goalHoursInput === h
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                    }`}
+                  >
+                    {h}時間
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setIsEditingGoal(false)}
+                className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 font-semibold text-xs cursor-pointer"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveGoal}
+                className="px-5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 font-bold text-xs cursor-pointer shadow-xs"
+              >
+                保存する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

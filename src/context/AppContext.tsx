@@ -87,6 +87,30 @@ interface AppContextType {
   // テスト課題からタスク作成への引き継ぎ状態
   pendingRegularTaskForStudentPlan: RegularTestTask | null;
   setPendingRegularTaskForStudentPlan: (task: RegularTestTask | null) => void;
+
+  // 最後に記録した教科（数学固定を防止）
+  lastRecordedSubjectId: string;
+  setLastRecordedSubjectId: (subjectId: string) => void;
+
+  // タイマー状態（ページ遷移してもリセットされないグローバル保持）
+  globalTimer: {
+    timerType: 'countup' | 'countdown';
+    setTimerType: (type: 'countup' | 'countdown') => void;
+    timerSeconds: number;
+    setTimerSeconds: React.Dispatch<React.SetStateAction<number>>;
+    isRunning: boolean;
+    setIsRunning: (running: boolean) => void;
+    targetMinutes: number;
+    setTargetMinutes: (min: number) => void;
+    countdownRemaining: number;
+    setCountdownRemaining: React.Dispatch<React.SetStateAction<number>>;
+    countdownFinished: boolean;
+    setCountdownFinished: (finished: boolean) => void;
+    toggleTimer: () => void;
+    resetTimer: () => void;
+    selectedMaterialId: string;
+    setSelectedMaterialId: (id: string) => void;
+  };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -118,6 +142,105 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
   const [pendingRegularTaskForStudentPlan, setPendingRegularTaskForStudentPlan] = useState<RegularTestTask | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // 最後に記録した教科（デフォルトは保存値、なければ 'math'）
+  const [lastRecordedSubjectId, setLastRecordedSubjectIdState] = useState<string>(() => {
+    return localStorage.getItem('tulips_last_subject_id') || 'math';
+  });
+
+  const setLastRecordedSubjectId = React.useCallback((subjectId: string) => {
+    setLastRecordedSubjectIdState(subjectId);
+    try {
+      localStorage.setItem('tulips_last_subject_id', subjectId);
+    } catch {}
+  }, []);
+
+  // グローバルタイマー管理（画面遷移してもタイマーが継続動作）
+  const [timerType, setTimerType] = useState<'countup' | 'countdown'>('countup');
+  const [timerSeconds, setTimerSeconds] = useState<number>(0);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [targetMinutes, setTargetMinutes] = useState<number>(25);
+  const [countdownRemaining, setCountdownRemaining] = useState<number>(25 * 60);
+  const [countdownFinished, setCountdownFinished] = useState<boolean>(false);
+  const [timerSelectedMaterialId, setTimerSelectedMaterialId] = useState<string>('');
+
+  const timerRef = React.useRef<any>(null);
+
+  useEffect(() => {
+    if (isRunning) {
+      timerRef.current = setInterval(() => {
+        if (timerType === 'countup') {
+          setTimerSeconds((prev) => prev + 1);
+        } else {
+          setCountdownRemaining((prev) => {
+            if (prev <= 1) {
+              clearInterval(timerRef.current);
+              setIsRunning(false);
+              setCountdownFinished(true);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isRunning, timerType]);
+
+  const toggleTimer = React.useCallback(() => {
+    setIsRunning((prev) => !prev);
+  }, []);
+
+  const resetTimer = React.useCallback(() => {
+    setIsRunning(false);
+    if (timerType === 'countup') {
+      setTimerSeconds(0);
+    } else {
+      setCountdownRemaining(targetMinutes * 60);
+      setCountdownFinished(false);
+    }
+  }, [timerType, targetMinutes]);
+
+  const globalTimer = useMemo(
+    () => ({
+      timerType,
+      setTimerType,
+      timerSeconds,
+      setTimerSeconds,
+      isRunning,
+      setIsRunning,
+      targetMinutes,
+      setTargetMinutes,
+      countdownRemaining,
+      setCountdownRemaining,
+      countdownFinished,
+      setCountdownFinished,
+      toggleTimer,
+      resetTimer,
+      selectedMaterialId: timerSelectedMaterialId,
+      setSelectedMaterialId: setTimerSelectedMaterialId,
+    }),
+    [
+      timerType,
+      timerSeconds,
+      isRunning,
+      targetMinutes,
+      countdownRemaining,
+      countdownFinished,
+      toggleTimer,
+      resetTimer,
+      timerSelectedMaterialId,
+    ]
+  );
 
   const accentForeground = getContrastTextColor(accentColor);
 
@@ -391,6 +514,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteMaterial,
         pendingRegularTaskForStudentPlan,
         setPendingRegularTaskForStudentPlan,
+        lastRecordedSubjectId,
+        setLastRecordedSubjectId,
+        globalTimer,
       }}
     >
       {children}

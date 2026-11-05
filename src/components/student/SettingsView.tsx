@@ -496,6 +496,25 @@ export const SettingsView: React.FC = () => {
         </button>
       </form>
 
+      {/* アプリバージョン・更新チェック（設定画面の目立たない場所） */}
+      <div className="pt-2 pb-6 flex items-center justify-between text-[11px] text-zinc-400 border-t border-zinc-200/60 dark:border-zinc-800">
+        <div className="flex items-center space-x-2">
+          <span>TULIPS v2.4 (PWA自動更新対応)</span>
+        </div>
+        <button
+          type="button"
+          onClick={async () => {
+            const { checkOrTriggerPWAUpdate } = await import('../../utils/pwaUpdate.ts');
+            await checkOrTriggerPWAUpdate();
+          }}
+          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          title="アプリの最新バージョンを確認して更新を適用します"
+        >
+          <RefreshCw className="w-3 h-3" />
+          <span>アプリ更新を確認</span>
+        </button>
+      </div>
+
       {/* 新規アカウント作成モーダル（formタグの外側に配置） */}
       <AccountCreateModal
         isOpen={isCreateModalOpen}
