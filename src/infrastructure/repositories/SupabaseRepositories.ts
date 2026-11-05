@@ -79,8 +79,22 @@ export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
     }
 
     const all = Array.from(recordsMap.values());
-    all.sort((a, b) => (b.date === a.date ? (b.createdAt > a.createdAt ? 1 : -1) : b.date > a.date ? 1 : -1));
-    return all;
+
+    // サーバーとSupabase・ローカルストレージ間でIDが異なって二重化されたレコードを内容で名寄せ（同一ユーザー、日付、教材、学習時間、メモ、計測方法）
+    const deduplicated: StudyRecord[] = [];
+    const seenContent = new Set<string>();
+
+    for (const r of all) {
+      // 5分以内の重複作成かつ同一内容のものを名寄せ
+      const contentKey = `${r.userId}|${r.date}|${r.materialId}|${r.durationMinutes}|${r.method}|${r.notes || ''}`;
+      if (!seenContent.has(contentKey)) {
+        seenContent.add(contentKey);
+        deduplicated.push(r);
+      }
+    }
+
+    deduplicated.sort((a, b) => (b.date === a.date ? (b.createdAt > a.createdAt ? 1 : -1) : b.date > a.date ? 1 : -1));
+    return deduplicated;
   }
 
   async getRecordsByDateRange(userId: string, startDate: string, endDate: string): Promise<StudyRecord[]> {
@@ -120,8 +134,19 @@ export class SupabaseStudyRecordRepository implements IStudyRecordRepository {
     }
 
     const all = Array.from(recordsMap.values());
-    all.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
-    return all;
+    const deduplicated: StudyRecord[] = [];
+    const seenContent = new Set<string>();
+
+    for (const r of all) {
+      const contentKey = `${r.userId}|${r.date}|${r.materialId}|${r.durationMinutes}|${r.method}|${r.notes || ''}`;
+      if (!seenContent.has(contentKey)) {
+        seenContent.add(contentKey);
+        deduplicated.push(r);
+      }
+    }
+
+    deduplicated.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
+    return deduplicated;
   }
 
   async addRecord(record: Omit<StudyRecord, 'id' | 'createdAt'>): Promise<StudyRecord> {

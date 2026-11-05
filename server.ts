@@ -386,10 +386,20 @@ app.get('/api/records', (req: Request, res: Response) => {
 });
 
 app.post('/api/records', (req: Request, res: Response) => {
+  const recordId = req.body.id || `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const createdAt = req.body.createdAt || new Date().toISOString();
+
+  // 同一IDのレコードが既に存在する場合は重複登録を防ぎ既存データを返す
+  const existingIndex = db.records.findIndex((r) => r.id === recordId);
+  if (existingIndex !== -1) {
+    res.status(200).json(db.records[existingIndex]);
+    return;
+  }
+
   const newRecord: StudyRecord = {
     ...req.body,
-    id: `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    createdAt: new Date().toISOString(),
+    id: recordId,
+    createdAt,
   };
   db.records.unshift(newRecord);
   saveDatabase(db);
